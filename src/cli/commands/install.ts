@@ -232,37 +232,88 @@ export async function installCommand(opts: InstallOptions = {}): Promise<void> {
   }
 }
 
+// ── Uninstall helpers ────────────────────────────────────────────────────────
+
+function removeMcpEntry(filePath: string, serverKey = 'fire-code'): boolean {
+  if (!existsSync(filePath)) return false;
+  const config = readJson(filePath);
+  if (!config['mcpServers']) return false;
+  if (!(config['mcpServers'] as Record<string, unknown>)[serverKey]) return false;
+  delete (config['mcpServers'] as Record<string, unknown>)[serverKey];
+  writeJson(filePath, config);
+  return true;
+}
+
+function removeNestedEntry(
+  filePath: string,
+  ...keys: string[]
+): boolean {
+  if (!existsSync(filePath)) return false;
+  const config = readJson(filePath);
+  let node: Record<string, unknown> = config;
+  for (let i = 0; i < keys.length - 1; i++) {
+    if (!node[keys[i]]) return false;
+    node = node[keys[i]] as Record<string, unknown>;
+  }
+  const last = keys[keys.length - 1];
+  if (!node[last]) return false;
+  delete node[last];
+  writeJson(filePath, config);
+  return true;
+}
+
 export async function uninstallCommand(): Promise<void> {
   console.log(chalk.red('\n  🔥 Fire Code') + chalk.gray(' — uninstall\n'));
 
   const spinner = ora({ text: 'Removing Fire Code...', color: 'red' }).start();
+  spinner.stop();
 
   try {
-    // Remove from Claude MCP config
-    const mcpPath = join(homedir(), '.claude', 'claude_desktop_config.json');
-    const config = readJson(mcpPath);
-    if (config['mcpServers']) {
-      delete (config['mcpServers'] as Record<string, unknown>)['fire-code'];
-      writeJson(mcpPath, config);
+    const h = homedir();
+    const removed: string[] = [];
+
+    // Claude Code — MCP config
+    if (removeMcpEntry(join(h, '.claude', 'claude_desktop_config.json')))
+      removed.push('claude_desktop_config.json');
+
+    // Claude Code — hooks
+    if (removeNestedEntry(join(h, '.claude', 'settings.json'), 'plugins', 'fire-code'))
+      removed.push('Claude settings.json (hooks)');
+
+    // Cursor
+    if (removeMcpEntry(join(h, '.cursor', 'mcp.json')))
+      removed.push('.cursor/mcp.json');
+
+    // Windsurf
+    if (removeMcpEntry(join(h, '.codeium', 'windsurf', 'mcp_config.json')))
+      removed.push('.codeium/windsurf/mcp_config.json');
+
+    // OpenCode
+    if (removeNestedEntry(join(h, '.config', 'opencode', 'config.json'), 'mcp', 'servers', 'fire-code'))
+      removed.push('.config/opencode/config.json');
+
+    // Codex CLI
+    if (removeMcpEntry(join(h, '.codex', 'config.json')))
+      removed.push('.codex/config.json');
+
+    // Gemini CLI
+    if (removeNestedEntry(join(h, '.gemini', 'settings.json'), 'mcpServers', 'fire-code'))
+      removed.push('.gemini/settings.json');
+
+    // Goose
+    if (removeMcpEntry(join(h, '.config', 'goose', 'mcp.json')))
+      removed.push('.config/goose/mcp.json');
+
+    if (removed.length === 0) {
+      console.log(chalk.yellow('  No Fire Code installations found.\n'));
+      return;
     }
 
-    // Remove plugin hooks from Claude settings
-    const settingsPath = join(homedir(), '.claude', 'settings.json');
-    const settings = readJson(settingsPath);
-    if (settings['plugins']) {
-      delete (settings['plugins'] as Record<string, unknown>)['fire-code'];
-      writeJson(settingsPath, settings);
+    for (const f of removed) {
+      console.log(chalk.green('  ✓') + ` Removed from ${f}`);
     }
 
-    // Also clean up Cursor if present
-    const cursorMcp = join(homedir(), '.cursor', 'mcp.json');
-    if (existsSync(cursorMcp)) {
-      const cc = readJson(cursorMcp);
-      if (cc['mcpServers']) delete (cc['mcpServers'] as Record<string, unknown>)['fire-code'];
-      writeJson(cursorMcp, cc);
-    }
-
-    spinner.succeed(chalk.green('Fire Code uninstalled'));
+    console.log(chalk.green('\n  ✓ Fire Code uninstalled'));
     console.log(chalk.gray('\n  Restart your IDE to apply changes.\n'));
   } catch (err) {
     spinner.fail(chalk.red('Uninstall failed'));

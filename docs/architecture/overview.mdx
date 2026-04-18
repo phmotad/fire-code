@@ -3,25 +3,42 @@ title: Architecture Overview
 description: How Fire Code's components fit together.
 ---
 
+## Supported IDEs
+
+| IDE | MCP Tools | Lifecycle Hooks |
+|-----|-----------|----------------|
+| **Claude Code** | ✓ | ✓ (SessionStart, PostToolUse, Stop) |
+| **Cursor** | ✓ | — |
+| **Windsurf** | ✓ | — |
+| **OpenCode** | ✓ | ✓ |
+| **Codex CLI** | ✓ | — |
+| **Gemini CLI** | ✓ | — |
+| **Goose** | ✓ | — |
+| **Generic MCP** | ✓ | — |
+
+Hooks provide auto re-indexing and session context injection. IDEs without hooks still get full MCP tool access — just run `fire-code index` manually after significant changes.
+
 ## System Overview
 
 ```
-┌─────────────────────────────────────────────────┐
-│                  Claude Code                    │
-│                                                 │
-│  ┌──────────────┐     ┌──────────────────────┐  │
-│  │   Lifecycle  │     │     MCP Client       │  │
-│  │    Hooks     │     │  (calls firecode.*)  │  │
-│  └──────┬───────┘     └──────────┬───────────┘  │
-└─────────│────────────────────────│──────────────┘
-          │                        │ stdio
-          ▼                        ▼
+┌─────────────────────────────────────────────────────────────┐
+│     Your IDE  (Claude Code / Cursor / Windsurf / OpenCode…) │
+│                                                             │
+│  ┌──────────────┐     ┌──────────────────────────────────┐  │
+│  │   Lifecycle  │     │          MCP Client              │  │
+│  │    Hooks     │     │  (calls firecode.* tools)        │  │
+│  │ (Claude Code │     └────────────────┬─────────────────┘  │
+│  │  / OpenCode) │                      │ stdio              │
+│  └──────┬───────┘                      │                    │
+└─────────│────────────────────────────────────────────────── ┘
+          │                              │
+          ▼                              ▼
 ┌─────────────────┐    ┌──────────────────────────┐
 │  Daemon Server  │    │       MCP Server         │
 │  :37778         │    │                          │
 │                 │    │  smart_search             │
 │  /health        │    │  smart_outline            │
-│  /             │    │  get_context              │
+│  /              │    │  get_context              │
 │  /index         │    │  search_code              │
 │  /context       │    │  get_graph                │
 │  /observations  │    │  corpus_search            │
