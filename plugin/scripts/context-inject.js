@@ -151,7 +151,7 @@ try {
 
       parts.push(
         'Tools: smart_search | smart_outline | get_context | corpus_search | observations | execute\n' +
-        'Auto-trigger rules → see FIRECODE.md in project root (if present)\n' +
+        'Auto-trigger rules → see agents.md in project root (if present)\n' +
         'Branch: firecode/{supervisor|dev|review}/{type}/{slug}'
       );
 

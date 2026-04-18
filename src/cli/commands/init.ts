@@ -6,11 +6,11 @@ import { ensureFireCodeDir } from '../../utils/paths.js';
 
 const PLUGIN_ROOT = resolve(__dirname, '..', '..', '..');
 
-function writeFirecodeAgentMd(cwd: string): void {
-  const dest = join(cwd, 'FIRECODE.md');
+function writeAgentsMd(cwd: string): void {
+  const dest = join(cwd, 'agents.md');
   if (existsSync(dest)) return; // never overwrite user edits
   try {
-    const src = join(PLUGIN_ROOT, 'plugin', 'FIRECODE.md');
+    const src = join(PLUGIN_ROOT, 'plugin', 'agents.md');
     const content = existsSync(src)
       ? readFileSync(src, 'utf8')
       : generateAgentMd();
@@ -216,11 +216,11 @@ export default config;
   const configPath = join(cwd, 'firecode.config.ts');
   writeFileSync(configPath, config);
   ensureFireCodeDir(cwd);
-  writeFirecodeAgentMd(cwd);
+  writeAgentsMd(cwd);
 
   console.log('\n' + chalk.green('✓ Created firecode.config.ts'));
   console.log(chalk.green('✓ Created .firecode/'));
-  console.log(chalk.green('✓ Created FIRECODE.md') + chalk.gray(' — agent autonomous trigger rules'));
+  console.log(chalk.green('✓ Created agents.md') + chalk.gray(' — agent autonomous trigger rules'));
   console.log('\n' + chalk.bold('Next steps:'));
   console.log(chalk.gray('  1. ') + chalk.white('fire-code index') + chalk.gray('   — index your project'));
   console.log(chalk.gray('  2. ') + chalk.white('fire-code dev') + chalk.gray('     — start MCP server'));

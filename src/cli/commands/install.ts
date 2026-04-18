@@ -154,6 +154,37 @@ function installGeneric(): string[] {
   ];
 }
 
+// ── agents.md ────────────────────────────────────────────────────────────────
+
+function writeAgentsMd(cwd: string): void {
+  const dest = join(cwd, 'agents.md');
+  if (existsSync(dest)) return;
+  try {
+    const src = join(PLUGIN_ROOT, 'plugin', 'agents.md');
+    const content = existsSync(src) ? readFileSync(src, 'utf8') : defaultAgentsMd();
+    writeFileSync(dest, content, 'utf8');
+  } catch { /* best-effort */ }
+}
+
+function defaultAgentsMd(): string {
+  return `# Fire Code — Agent Instructions
+
+> This file is read automatically by your AI coding agent. Do not delete it.
+
+You have Fire Code MCP tools available. **Use them without waiting to be asked.**
+
+| Situation | Call |
+|---|---|
+| Before writing any code | \`firecode.smart_search({ query })\` then \`firecode.corpus_search({ query })\` |
+| Before reading a file | \`firecode.smart_outline({ file_path })\` |
+| Task touches > 2 files | \`firecode.get_context({ query: task })\` |
+| Implement / fix / refactor | \`firecode.execute({ task, agent: "dev" })\` |
+| Plan / design / coordinate | \`firecode.execute({ task, agent: "supervisor" })\` |
+| Audit / review / inspect | \`firecode.execute({ task, agent: "review" })\` |
+| Recall past work | \`firecode.observations({ query })\` |
+`;
+}
+
 // ── Auto-detection ───────────────────────────────────────────────────────────
 
 function detectIde(): IdeTarget {
@@ -213,6 +244,10 @@ export async function installCommand(opts: InstallOptions = {}): Promise<void> {
     for (const msg of messages) {
       console.log(chalk.green('  ✓') + ' ' + msg);
     }
+
+    const projectCwd = opts.cwd ?? process.cwd();
+    writeAgentsMd(projectCwd);
+    console.log(chalk.green('  ✓') + ' agents.md written to project root');
 
     const hasHooks = ide === 'claude-code';
     console.log(chalk.green('\n  ✓ Fire Code installed successfully!\n'));

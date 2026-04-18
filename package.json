@@ -1,6 +1,6 @@
 {
   "name": "@phmotad/fire-code",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "description": "Intelligent MCP execution engine for AI coding agents — persistent memory, context-aware, Git-traceable",
   "keywords": [
     "mcp",
@@ -40,6 +40,7 @@
   "files": [
     "dist",
     "plugin/.claude-plugin",
+    "plugin/agents.md",
     "plugin/hooks",
     "plugin/scripts",
     "examples",

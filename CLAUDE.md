@@ -16,7 +16,7 @@ src/git/GitManager.ts      — branch/commit/stash strategies
 src/git/CommitFormatter.ts — AgentRole, buildBranchName, conventional commits
 plugin/hooks/hooks.json    — Claude Code lifecycle hooks
 plugin/.claude-plugin/plugin.json — systemPrompt for autonomous tool use
-plugin/FIRECODE.md         — agent trigger rules template (copied to user projects)
+plugin/agents.md           — agent trigger rules template (copied to user projects)
 ```
 
 ## MCP Tool Hierarchy (always follow this order)

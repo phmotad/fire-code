@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 150 40" fill="none">
+  <path d="M14 2 C19 7 23 13 21 20 C20 25 17 30 14 36 C11 30 8 25 7 20 C5 13 9 7 14 2 Z" fill="#ff6b35"/>
+  <path d="M7 20 C5 15 7 10 10 8 C8 12 9 16 11 19 Z" fill="#e5531a"/>
+  <path d="M21 20 C23 15 21 10 18 8 C20 12 19 16 17 19 Z" fill="#e5531a"/>
+  <path d="M14 12 C16 17 16 22 14 30 C12 22 12 17 14 12 Z" fill="#ffd700"/>
+  <text x="30" y="26" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="18" font-weight="700" fill="#0f0f0f">Fire Code</text>
+</svg>
