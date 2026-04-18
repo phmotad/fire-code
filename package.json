@@ -1,6 +1,6 @@
 {
   "name": "@phmotad/fire-code",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Intelligent MCP execution engine for AI coding agents — persistent memory, context-aware, Git-traceable",
   "keywords": [
     "mcp",

@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
 import chalk from 'chalk';
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { version } = require('../../package.json') as { version: string };
 import { initCommand } from './commands/init.js';
 import { devCommand } from './commands/dev.js';
 import { indexCommand } from './commands/index-cmd.js';
@@ -14,7 +16,7 @@ const program = new Command();
 program
   .name('fire-code')
   .description(chalk.red('🔥 Fire Code') + ' — Intelligent MCP execution engine for AI coding agents')
-  .version('0.1.0');
+  .version(version);
 
 program
   .command('init')
