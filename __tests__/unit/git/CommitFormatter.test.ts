@@ -78,7 +78,43 @@ describe('slugify', () => {
 });
 
 describe('buildBranchName', () => {
-  it('builds correct branch name', () => {
-    expect(buildBranchName('firecode/', 'feature', 'Add user auth')).toBe('firecode/feature/add-user-auth');
+  it('builds branch name without agent role', () => {
+    expect(buildBranchName('firecode/', 'feat', 'Add user auth')).toBe('firecode/feat/add-user-auth');
+  });
+
+  it('builds branch name with supervisor role', () => {
+    expect(buildBranchName('firecode/', 'feat', 'Auth flow redesign', 'supervisor'))
+      .toBe('firecode/supervisor/feat/auth-flow-redesign');
+  });
+
+  it('builds branch name with dev role', () => {
+    expect(buildBranchName('firecode/', 'fix', 'Null user guard', 'dev'))
+      .toBe('firecode/dev/fix/null-user-guard');
+  });
+
+  it('builds branch name with review role', () => {
+    expect(buildBranchName('firecode/', 'chore', 'Security audit', 'review'))
+      .toBe('firecode/review/chore/security-audit');
+  });
+
+  it('omits agent segment when role is undefined', () => {
+    const name = buildBranchName('firecode/', 'refactor', 'Extract auth service', undefined);
+    expect(name).toBe('firecode/refactor/extract-auth-service');
+    expect(name).not.toContain('undefined');
+  });
+});
+
+describe('formatCommitMessage with agentRole in metadata', () => {
+  it('includes agentRole in metadata when provided', () => {
+    const msg = formatCommitMessage(
+      {
+        type: 'feat',
+        description: 'new feature',
+        metadata: { taskId: 'task-1', agent: 'CodeAgent', agentRole: 'dev', durationMs: 800 },
+      },
+      baseConfig,
+    );
+    expect(msg).toContain('firecode-task-id: task-1');
+    expect(msg).toContain('firecode-agent: CodeAgent');
   });
 });

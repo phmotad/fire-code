@@ -75,8 +75,9 @@ export async function indexProject(
       durationMs,
     };
 
-    // 6. Bootstrap log
-    const logLine = `[${new Date().toISOString()}] Indexed: ${files.length} files, ${functionsFound} functions, ${withEmbeddings.length} embeddings (${durationMs}ms)\n`;
+    // 6. Bootstrap log — terse format to minimise tokens on SessionStart injection
+    const ts = new Date().toISOString().replace('T', ' ').slice(0, 16);
+    const logLine = `${ts} | ${files.length}f ${functionsFound}fn ${withEmbeddings.length}emb | ${(durationMs / 1000).toFixed(1)}s\n`;
     appendFileSync(getBootstrapLogPath(cwd), logLine);
 
     logger.info(result, 'Indexing complete');

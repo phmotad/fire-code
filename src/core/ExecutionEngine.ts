@@ -9,7 +9,7 @@ import { MemoryVectorStore } from '../vector/MemoryVectorStore.js';
 import { GitManager } from '../git/GitManager.js';
 import { CodeAgent } from '../agents/CodeAgent.js';
 import { classifyTask, type TaskType } from './TaskRouter.js';
-import type { CommitType } from '../git/CommitFormatter.js';
+import type { CommitType, AgentRole } from '../git/CommitFormatter.js';
 
 function toCommitType(t: TaskType): CommitType {
   return t === 'feature' ? 'feat' : t;
@@ -24,6 +24,7 @@ export interface ExecuteOptions {
   type?: TaskType;
   mode?: 'safe' | 'aggressive';
   cwd?: string;
+  agentRole?: AgentRole;
 }
 
 export interface ExecutionResult extends AgentResult {
@@ -90,8 +91,8 @@ export class ExecutionEngine {
 
     let branch: string | undefined;
     if (this.config.git.enabled && await this.git.isRepo()) {
-      branch = await this.git.createBranch(toCommitType(taskType), opts.task);
-      logger.info({ branch }, 'Branch created/switched');
+      branch = await this.git.createBranch(toCommitType(taskType), opts.task, opts.agentRole);
+      logger.info({ branch, agentRole: opts.agentRole }, 'Branch created/switched');
     }
 
     const result = await this.agent.execute({
@@ -117,7 +118,13 @@ export class ExecutionEngine {
         {
           type: toCommitType(taskType),
           description: opts.task.slice(0, 70),
-          metadata: { taskId, agent: 'CodeAgent', durationMs: result.durationMs, filesChanged: changedFiles },
+          metadata: {
+            taskId,
+            agent: 'CodeAgent',
+            agentRole: opts.agentRole,
+            durationMs: result.durationMs,
+            filesChanged: changedFiles,
+          },
         },
         changedFiles,
       );

@@ -2,9 +2,12 @@ import type { GitConfig } from '../config/types.js';
 
 export type CommitType = 'feat' | 'fix' | 'refactor' | 'docs' | 'chore' | 'test' | 'style';
 
+export type AgentRole = 'supervisor' | 'dev' | 'review';
+
 export interface CommitMetadata {
   taskId?: string;
   agent?: string;
+  agentRole?: AgentRole;
   durationMs?: number;
   filesChanged?: string[];
 }
@@ -60,7 +63,15 @@ export function slugify(text: string): string {
     .replace(/^-|-$/g, '');
 }
 
-export function buildBranchName(prefix: string, type: string, description: string): string {
+export function buildBranchName(
+  prefix: string,
+  type: string,
+  description: string,
+  agentRole?: AgentRole,
+): string {
   const slug = slugify(description);
+  if (agentRole) {
+    return `${prefix}${agentRole}/${type}/${slug}`;
+  }
   return `${prefix}${type}/${slug}`;
 }

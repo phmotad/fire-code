@@ -2,12 +2,16 @@ import { z } from 'zod';
 import { ExecutionEngine } from '../../core/ExecutionEngine.js';
 import type { FireCodeConfig } from '../../config/types.js';
 import type { LLMProvider } from '../../providers/LLMProvider.js';
+import type { AgentRole } from '../../git/CommitFormatter.js';
 import { toFireCodeError } from '../../utils/errors.js';
 
 export const ExecuteInputSchema = z.object({
   task: z.string().min(1).describe('Task description for the coding agent'),
   type: z.enum(['feature', 'fix', 'refactor', 'docs']).optional().describe('Task type (auto-detected if omitted)'),
   mode: z.enum(['safe', 'aggressive']).optional().describe('Execution mode'),
+  agent: z.enum(['supervisor', 'dev', 'review']).optional().describe(
+    'Agent role — sets branch prefix: firecode/supervisor/*, firecode/dev/*, firecode/review/*',
+  ),
 });
 
 export type ExecuteInput = z.infer<typeof ExecuteInputSchema>;
@@ -25,6 +29,7 @@ export async function executeTool(
       type: input.type,
       mode: input.mode,
       cwd,
+      agentRole: input.agent as AgentRole | undefined,
     });
 
     return JSON.stringify({

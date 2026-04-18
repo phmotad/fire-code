@@ -7,6 +7,7 @@ import {
   buildBranchName,
   type CommitOptions,
   type CommitType,
+  type AgentRole,
 } from './CommitFormatter.js';
 
 export interface GitStatus {
@@ -63,8 +64,8 @@ export class GitManager {
     return branches.includes(name);
   }
 
-  getBranchName(type: CommitType, description: string): string {
-    return buildBranchName(this.config.branchPrefix, type, description);
+  getBranchName(type: CommitType, description: string, agentRole?: AgentRole): string {
+    return buildBranchName(this.config.branchPrefix, type, description, agentRole);
   }
 
   async validateWorkingTree(): Promise<void> {
@@ -108,13 +109,13 @@ export class GitManager {
     }
   }
 
-  async createBranch(type: CommitType, description: string): Promise<string> {
+  async createBranch(type: CommitType, description: string, agentRole?: AgentRole): Promise<string> {
     if (!this.config.autoBranch) {
       const current = await this.getCurrentBranch();
       return current ?? 'HEAD';
     }
 
-    const baseName = this.getBranchName(type, description);
+    const baseName = this.getBranchName(type, description, agentRole);
     const strategy = this.config.branchStrategy;
 
     if (!(await this.branchExists(baseName))) {

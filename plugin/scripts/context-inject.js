@@ -124,31 +124,40 @@ try {
     case 'session-start': {
       const project = getProjectName();
       const logLines = readBootstrapLog();
-      const contextParts = [];
+      const parts = [];
 
+      // Header — single terse line
       if (logLines) {
-        contextParts.push(`[Fire Code] Project index loaded for **${project}**:\n${logLines}`);
+        parts.push(`[FC] ${project} | ${logLines}`);
+      } else {
+        parts.push(`[FC] ${project} | not indexed — run: fire-code index`);
       }
 
-      // Try daemon first (warm model, faster); fallback to CLI
+      // Recent observations — max 6, one line each
       if (existsSync(dbPath)) {
-        let memContext = '';
+        let obs = [];
         if (isDaemonAlive()) {
           const resp = daemonFetch('/observations', null);
           if (resp && resp.results && resp.results.length > 0) {
-            memContext = resp.results.slice(0, 8).map(o => `• [${o.type}] ${o.summary}`).join('\n');
+            obs = resp.results.slice(0, 6).map(o => `  [${o.type}] ${o.summary}`);
           }
         }
-        if (!memContext) memContext = runFireCode(['context', '--cwd', cwd, '--limit', '8']);
-        if (memContext) contextParts.push(memContext);
+        if (obs.length === 0) {
+          const raw = runFireCode(['context', '--cwd', cwd, '--limit', '6']);
+          if (raw) obs = raw.split('\n').slice(0, 6);
+        }
+        if (obs.length > 0) parts.push(obs.join('\n'));
       }
 
-      if (contextParts.length > 0) {
-        contextParts.push('\nUse `firecode.get_context`, `firecode.smart_search`, `firecode.corpus_search`, or `firecode.observations` to query project memory.');
-        silentContinue(contextParts.join('\n\n'));
-      } else {
-        silentContinue();
-      }
+      parts.push('Tools: firecode.smart_search | get_context | corpus_search | observations | execute');
+
+      // Agent role guide — compact
+      parts.push(
+        'Branch convention: firecode/{agent}/{type}/{slug}\n' +
+        '  agent: supervisor (plan/review) | dev (implement) | review (audit)'
+      );
+
+      silentContinue(parts.join('\n'));
       break;
     }
 
