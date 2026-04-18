@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.firecode/
+coverage/
+*.log
+.env
+.env.local
+firecode.config.ts

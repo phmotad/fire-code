@@ -1,0 +1,16 @@
+__tests__/
+src/
+scripts/
+*.test.ts
+*.spec.ts
+tsup.config.ts
+jest.config.ts
+tsconfig.json
+tsconfig.build.json
+.firecode/
+.github/
+.vscode/
+.mcp.json
+coverage/
+*.log
+BENCHMARK_REPORT.md

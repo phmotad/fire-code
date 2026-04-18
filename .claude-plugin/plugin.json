@@ -1,0 +1,25 @@
+{
+  "name": "fire-code",
+  "version": "0.1.0",
+  "description": "Intelligent MCP execution engine for AI coding agents — persistent memory, context-aware, Git-traceable",
+  "author": {
+    "name": "FireCode Contributors",
+    "url": "https://github.com/YOUR_USERNAME/fire-code"
+  },
+  "license": "MIT",
+  "repository": "https://github.com/YOUR_USERNAME/fire-code",
+  "homepage": "https://github.com/YOUR_USERNAME/fire-code#readme",
+  "keywords": ["mcp", "ai", "coding-agent", "claude", "memory", "vector", "graph", "git"],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "mcp": {
+    "command": "npx",
+    "args": ["fire-code", "dev"],
+    "description": "Starts the Fire Code MCP server (get_context, search_code, get_graph, execute, outline)"
+  },
+  "hooks": "./hooks/hooks.json",
+  "skills": [],
+  "modes": [],
+  "ui": {}
+}

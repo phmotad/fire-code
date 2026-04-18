@@ -1,0 +1,140 @@
+{
+  "timestamp": "2026-04-18T16:23:16.240Z",
+  "version": "2.0",
+  "scenarios": [
+    {
+      "id": "H2",
+      "hypothesis": "Code Duplication",
+      "without": {
+        "lines": 35,
+        "duplications": 0,
+        "reuses": 5,
+        "symbols": [
+          "validateEmail",
+          "generateToken",
+          "sendEmail",
+          "buildPasswordResetEmail",
+          "db."
+        ]
+      },
+      "with": {
+        "lines": 35,
+        "duplications": 0,
+        "reuses": 5,
+        "symbols": [
+          "validateEmail",
+          "generateToken",
+          "sendEmail",
+          "buildPasswordResetEmail",
+          "db."
+        ]
+      }
+    },
+    {
+      "id": "H1",
+      "hypothesis": "Context Awareness",
+      "without": {
+        "lines": 46,
+        "duplications": 0,
+        "reuses": 3,
+        "symbols": [
+          "validateEmail",
+          "comparePassword",
+          "db."
+        ]
+      },
+      "with": {
+        "lines": 31,
+        "duplications": 0,
+        "reuses": 3,
+        "symbols": [
+          "validateEmail",
+          "comparePassword",
+          "db."
+        ]
+      }
+    },
+    {
+      "id": "H4",
+      "hypothesis": "Feature Awareness",
+      "without": {
+        "lines": 7,
+        "duplications": 0,
+        "reuses": 1,
+        "symbols": [
+          "registerUser"
+        ]
+      },
+      "with": {
+        "lines": 45,
+        "duplications": 0,
+        "reuses": 5,
+        "symbols": [
+          "validateEmail",
+          "validatePassword",
+          "hashPassword",
+          "registerUser",
+          "db."
+        ]
+      }
+    },
+    {
+      "id": "H5",
+      "hypothesis": "Graph Traversal",
+      "without": {
+        "lines": 24,
+        "duplications": 0,
+        "reuses": 2,
+        "symbols": [
+          "generateToken",
+          "db."
+        ]
+      },
+      "with": {
+        "lines": 43,
+        "duplications": 0,
+        "reuses": 2,
+        "symbols": [
+          "generateToken",
+          "db."
+        ]
+      }
+    },
+    {
+      "id": "H6",
+      "hypothesis": "Corpus Knowledge",
+      "without": {
+        "lines": 33,
+        "duplications": 0,
+        "reuses": 3,
+        "symbols": [
+          "validatePassword",
+          "hashPassword",
+          "db."
+        ]
+      },
+      "with": {
+        "lines": 33,
+        "duplications": 0,
+        "reuses": 3,
+        "symbols": [
+          "validatePassword",
+          "hashPassword",
+          "db."
+        ]
+      }
+    }
+  ],
+  "totals": {
+    "dupWithout": 0,
+    "dupWith": 0,
+    "reuseWithout": 14,
+    "reuseWith": 18,
+    "linesWithout": 145,
+    "linesWith": 187,
+    "linesDelta": -29,
+    "reuseDelta": 29,
+    "confirmed": 1,
+    "total": 5
+  }
+}

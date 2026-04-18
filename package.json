@@ -1,0 +1,112 @@
+{
+  "name": "fire-code",
+  "version": "0.2.0",
+  "description": "Intelligent MCP execution engine for AI coding agents — persistent memory, context-aware, Git-traceable",
+  "keywords": [
+    "mcp",
+    "ai",
+    "coding-agent",
+    "claude",
+    "claude-code",
+    "llm",
+    "typescript",
+    "memory",
+    "vector",
+    "graph",
+    "git",
+    "plugin"
+  ],
+  "author": "FireCode Contributors",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/phmotad/fire-code.git"
+  },
+  "homepage": "https://github.com/phmotad/fire-code#readme",
+  "bugs": {
+    "url": "https://github.com/phmotad/fire-code/issues"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "fire-code": "dist/cli/index.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "plugin/.claude-plugin",
+    "plugin/hooks",
+    "plugin/scripts",
+    "examples",
+    "LICENSE",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "build:watch": "tsc -p tsconfig.build.json --watch",
+    "dev": "tsx src/cli/index.ts dev",
+    "start": "node dist/cli/index.js",
+    "test": "jest",
+    "test:unit": "jest --testPathPattern=__tests__/unit",
+    "test:integration": "jest --testPathPattern=__tests__/integration",
+    "test:coverage": "jest --coverage",
+    "lint": "tsc --noEmit",
+    "prepublishOnly": "npm run build && npm test",
+    "benchmark": "cross-env LOG_LEVEL=silent npx tsx --tsconfig tsconfig.json scripts/benchmark.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.114",
+    "@anthropic-ai/sdk": "^0.30.0",
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/express": "^5.0.6",
+    "@xenova/transformers": "^2.17.2",
+    "axios": "^1.7.0",
+    "better-sqlite3": "^12.9.0",
+    "chalk": "^5.3.0",
+    "commander": "^12.1.0",
+    "express": "^5.2.1",
+    "glob": "^11.0.0",
+    "graphology": "^0.26.0",
+    "graphology-pagerank": "^1.1.0",
+    "graphology-shortest-path": "^2.1.0",
+    "graphology-traversal": "^0.3.1",
+    "graphology-types": "^0.24.8",
+    "inquirer": "^9.3.0",
+    "openai": "^4.67.0",
+    "ora": "^8.1.0",
+    "pino": "^9.5.0",
+    "simple-git": "^3.27.0",
+    "tree-sitter": "^0.25.0",
+    "tree-sitter-go": "^0.25.0",
+    "tree-sitter-javascript": "^0.25.0",
+    "tree-sitter-python": "^0.25.0",
+    "tree-sitter-rust": "^0.24.0",
+    "tree-sitter-typescript": "^0.23.2",
+    "ts-morph": "^23.0.0",
+    "vectra": "^0.14.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@rollup/rollup-win32-x64-msvc": "^4.60.1",
+    "@types/inquirer": "^9.0.0",
+    "@types/jest": "^29.5.0",
+    "@types/node": "^20.0.0",
+    "cross-env": "^10.1.0",
+    "jest": "^29.7.0",
+    "pino-pretty": "^11.3.0",
+    "ts-jest": "^29.2.0",
+    "ts-node": "^10.9.2",
+    "tsup": "^8.3.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

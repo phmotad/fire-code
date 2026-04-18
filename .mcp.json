@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "fire-code": {
+      "command": "npx",
+      "args": ["tsx", "src/cli/index.ts", "dev"],
+      "description": "Fire Code MCP server (development mode — uses tsx)",
+      "env": {
+        "LOG_LEVEL": "info",
+        "NODE_ENV": "development"
+      }
+    }
+  }
+}
