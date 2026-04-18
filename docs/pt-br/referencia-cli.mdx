@@ -1,0 +1,182 @@
+---
+title: Referência CLI
+description: Todos os comandos do CLI fire-code.
+---
+
+## Configuração
+
+### `fire-code install`
+
+Instala o plugin na configuração do seu IDE.
+
+```bash
+fire-code install                       # detecta IDE automaticamente
+fire-code install --ide claude-code     # Claude Code
+fire-code install --ide cursor          # Cursor
+fire-code install --ide windsurf        # Windsurf
+fire-code install --ide opencode        # OpenCode
+fire-code install --ide codex           # Codex CLI
+fire-code install --ide gemini          # Gemini CLI
+fire-code install --ide goose           # Goose
+fire-code install --ide generic         # Qualquer IDE MCP
+```
+
+Registra:
+- Servidor MCP (ferramentas `firecode.*`)
+- Hooks de ciclo de vida (`SessionStart`, `PostToolUse`, `Stop`) — somente em IDEs que suportam hooks
+
+---
+
+### `fire-code uninstall`
+
+Remove o plugin da configuração do IDE.
+
+```bash
+fire-code uninstall
+fire-code uninstall --ide cursor
+```
+
+---
+
+### `fire-code init`
+
+Assistente de configuração interativo. Cria `firecode.config.ts` no diretório atual.
+
+```bash
+fire-code init
+```
+
+Solicita:
+- Nome do projeto
+- Provedor LLM + chave API
+- Estratégia Git
+- Padrões include/exclude de indexação
+
+---
+
+### `fire-code update`
+
+Atualiza o Fire Code para a versão mais recente.
+
+```bash
+fire-code update
+```
+
+Executa `npm install -g @phmotad/fire-code@latest`.
+
+---
+
+## Indexação
+
+### `fire-code index`
+
+Indexa o projeto atual.
+
+```bash
+fire-code index                 # modo lazy (pula arquivos não alterados)
+fire-code index --mode full     # re-indexação completa
+fire-code index --cwd /caminho  # indexar outro diretório
+```
+
+**Saída:**
+```
+✓ Escaneados 142 arquivos
+✓ Analisadas 387 funções
+✓ Grafo construído: 529 nós, 1204 arestas
+✓ Gerados 142 embeddings
+✓ Concluído em 4.2s
+```
+
+---
+
+## Corpus
+
+### `fire-code corpus build`
+
+Constrói o corpus de conhecimento a partir de arquivos de documentação.
+
+```bash
+fire-code corpus build
+fire-code corpus build --cwd /caminho/do/projeto
+```
+
+Percorre arquivos `.md`, `.mdx`, `.txt`, `.rst` e os divide em chunks no índice SQLite FTS5.
+
+---
+
+### `fire-code corpus prime`
+
+Adiciona uma entrada manualmente ao corpus.
+
+```bash
+fire-code corpus prime \
+  --title "Política de Auth" \
+  --content "Senhas usam SHA-256+sal. Nunca MD5." \
+  --tags "segurança,auth"
+
+# Marcar como privado (nunca retornado ao LLM)
+fire-code corpus prime \
+  --title "Notas Internas" \
+  --content "..." \
+  --private
+```
+
+---
+
+### `fire-code corpus query`
+
+Busca no corpus pela CLI.
+
+```bash
+fire-code corpus query "hash de senha"
+fire-code corpus query "envio de email" --limit 3
+```
+
+---
+
+## Daemon
+
+### `fire-code daemon start`
+
+Inicia o daemon em background (processo desacoplado).
+
+```bash
+fire-code daemon start
+```
+
+O daemon roda na porta **37778**. Dashboard: `http://localhost:37778`.
+
+---
+
+### `fire-code daemon stop`
+
+Para o daemon.
+
+```bash
+fire-code daemon stop
+```
+
+---
+
+### `fire-code daemon status`
+
+Mostra o status do daemon.
+
+```bash
+fire-code daemon status
+# → Daemon rodando (PID 12345, porta 37778, uptime 2h 14m)
+```
+
+---
+
+## Desenvolvimento
+
+### `fire-code dev`
+
+Inicia o servidor MCP em modo stdio (para teste/desenvolvimento).
+
+```bash
+fire-code dev
+```
+
+Este é o modo usado pelo Claude Code ao se conectar ao servidor MCP. Você pode usar isso para testar ferramentas manualmente.

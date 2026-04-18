@@ -15,6 +15,11 @@
 </p>
 
 <p align="center">
+  <a href="README.md"><strong>English</strong></a> •
+  <a href="README.pt-br.md">Português</a>
+</p>
+
+<p align="center">
   <a href="#quick-start">Quick Start</a> •
   <a href="#how-it-works">How It Works</a> •
   <a href="#mcp-tools">MCP Tools</a> •

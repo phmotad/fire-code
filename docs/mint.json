@@ -29,6 +29,10 @@
     {
       "name": "API Reference",
       "url": "api-reference"
+    },
+    {
+      "name": "Português",
+      "url": "pt-br"
     }
   ],
   "anchors": [
@@ -78,6 +82,30 @@
         "architecture/overview",
         "architecture/memory-layer",
         "architecture/graph-store"
+      ]
+    },
+    {
+      "group": "Primeiros Passos",
+      "pages": [
+        "pt-br/introducao",
+        "pt-br/inicio-rapido",
+        "pt-br/configuracao"
+      ]
+    },
+    {
+      "group": "Funcionalidades",
+      "pages": [
+        "pt-br/ferramentas-mcp",
+        "pt-br/corpus-conhecimento",
+        "pt-br/privacidade",
+        "pt-br/daemon"
+      ]
+    },
+    {
+      "group": "Referência",
+      "pages": [
+        "pt-br/referencia-cli",
+        "pt-br/arquitetura"
       ]
     }
   ],

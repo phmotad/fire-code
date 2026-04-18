@@ -1,0 +1,108 @@
+---
+title: Daemon
+description: O worker em background do Fire Code — contexto instantâneo sem cold starts.
+---
+
+O daemon do Fire Code é um servidor HTTP local (porta **37778**) que permanece ativo entre sessões. Ele fornece acesso instantâneo a observações, recuperação de contexto e estatísticas do projeto sem iniciar um novo processo a cada vez.
+
+## Início Automático
+
+O daemon inicia automaticamente quando o Claude Code começa uma sessão (via hook `SessionStart`). Você não precisa gerenciá-lo manualmente.
+
+## Comandos CLI
+
+```bash
+fire-code daemon start    # iniciar em background (processo desacoplado)
+fire-code daemon stop     # parar o daemon
+fire-code daemon status   # mostrar PID, porta e saúde
+```
+
+## Dashboard Web
+
+Abra o dashboard no navegador:
+
+```
+http://localhost:37778
+```
+
+O dashboard mostra:
+- **Observações** — feed em tempo real do que foi construído, corrigido e decidido
+- **Sessões** — histórico das sessões do IDE
+- **Corpus de Conhecimento** — docs e notas de arquitetura indexados
+- **Stats** — contagem de observações, sessões e tamanho do corpus
+
+A página se atualiza automaticamente a cada 30 segundos.
+
+## API REST
+
+O daemon expõe uma API REST simples para hooks e ferramentas externas:
+
+### `GET /health`
+
+```json
+{ "ok": true, "uptime": 12345, "pid": 9876 }
+```
+
+### `GET /`
+
+Retorna o dashboard HTML. Parâmetros de query:
+- `?cwd=/caminho/do/projeto` — trocar de projeto
+- `?project=meu-projeto` — sobrescrever nome do projeto
+
+### `POST /index`
+
+Disparar uma re-indexação:
+
+```bash
+curl -X POST http://localhost:37778/index \
+  -H "Content-Type: application/json" \
+  -d '{"mode": "lazy", "cwd": "/caminho/do/projeto"}'
+```
+
+### `POST /context`
+
+Obter contexto híbrido para uma consulta:
+
+```bash
+curl -X POST http://localhost:37778/context \
+  -H "Content-Type: application/json" \
+  -d '{"query": "fluxo de autenticação", "k": 5}'
+```
+
+### `GET /observations`
+
+Listar observações recentes:
+
+```bash
+curl "http://localhost:37778/observations?limit=10&q=auth"
+```
+
+### `GET /corpus`
+
+Buscar no corpus:
+
+```bash
+curl "http://localhost:37778/corpus?q=hash+de+senha&limit=5"
+```
+
+## Gerenciamento do PID
+
+O PID do daemon é armazenado em `.firecode/daemon.pid`. A função `isDaemonRunning()` usa `process.kill(pid, 0)` para verificar se está vivo sem enviar um sinal real.
+
+```
+.firecode/
+  daemon.pid    ← PID do processo daemon em execução
+```
+
+## Múltiplos Projetos
+
+O daemon é compartilhado entre todos os projetos na sua máquina. Troque de projeto passando `?cwd=` na URL do dashboard:
+
+```
+http://localhost:37778?cwd=/Users/voce/projeto-a
+http://localhost:37778?cwd=/Users/voce/projeto-b
+```
+
+<Note>
+  Apenas um daemon roda por máquina (porta única 37778). Ele serve qualquer projeto buscando o diretório `.firecode/` relativo ao parâmetro `cwd`.
+</Note>

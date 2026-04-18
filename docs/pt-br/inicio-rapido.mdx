@@ -1,0 +1,112 @@
+---
+title: Início Rápido
+description: Instale o Fire Code e comece a usá-lo em menos de 5 minutos.
+---
+
+## Pré-requisitos
+
+- Node.js 20+
+- Um IDE com suporte a MCP (Claude Code, Cursor, Windsurf, OpenCode…)
+- Um projeto para indexar
+
+## 1. Instalar
+
+```bash
+npm install -g @phmotad/fire-code
+```
+
+## 2. Instalar o Plugin
+
+<Tabs>
+  <Tab title="Claude Code">
+    ```bash
+    fire-code install
+    ```
+    Registra o servidor MCP e os hooks de ciclo de vida no config do Claude Code.
+  </Tab>
+  <Tab title="Cursor">
+    ```bash
+    fire-code install --ide cursor
+    ```
+  </Tab>
+  <Tab title="Windsurf">
+    ```bash
+    fire-code install --ide windsurf
+    ```
+  </Tab>
+  <Tab title="OpenCode">
+    ```bash
+    fire-code install --ide opencode
+    ```
+  </Tab>
+  <Tab title="Outros">
+    ```bash
+    fire-code install --ide generic
+    ```
+    Detecta automaticamente o IDE se nenhuma flag for passada.
+  </Tab>
+</Tabs>
+
+## 3. Indexar seu Projeto
+
+Navegue até o projeto e execute:
+
+```bash
+cd seu-projeto
+fire-code index
+```
+
+Escaneia os arquivos fonte, constrói o grafo de dependências e gera embeddings semânticos. Tudo salvo em `.firecode/` — nunca commitado no git.
+
+## 4. (Opcional) Construir o Corpus de Conhecimento
+
+Se o projeto tem docs de arquitetura, ADRs ou READMEs:
+
+```bash
+fire-code corpus build
+```
+
+Indexa todos os arquivos `.md`, `.txt`, `.rst` e `.mdx` em um banco de busca full-text.
+
+## 5. Reiniciar o IDE
+
+As ferramentas MCP agora estão disponíveis em toda sessão. O Claude injeta automaticamente o resumo do índice no início da sessão.
+
+## Verificar que Está Funcionando
+
+No Claude Code, pergunte:
+
+```
+Use firecode.smart_search para encontrar o ponto de entrada principal deste projeto.
+```
+
+Você deve receber uma resposta com referências de arquivo e linha do seu codebase.
+
+## O que Acontece em Cada Sessão
+
+```
+Hook SessionStart dispara
+  ├── Daemon inicia (porta 37778) se ainda não estiver rodando
+  └── .firecode/bootstrap.log injetado no contexto
+        → Claude sabe: N arquivos indexados, M funções, última indexação em T
+
+Hook PostToolUse dispara (em Write/Edit)
+  └── Arquivo alterado re-indexado automaticamente
+```
+
+## Próximos Passos
+
+<CardGroup cols={2}>
+  <Card title="Ferramentas MCP" icon="wrench" href="/pt-br/ferramentas-mcp">
+    Aprenda a usar todas as 8 ferramentas MCP de forma eficiente.
+  </Card>
+  <Card title="Configuração" icon="gear" href="/pt-br/configuracao">
+    Personalize o Fire Code para o seu projeto.
+  </Card>
+  <Card title="Corpus de Conhecimento" icon="book" href="/pt-br/corpus-conhecimento">
+    Alimente docs de arquitetura no contexto do agente.
+  </Card>
+  <Card title="Tags de Privacidade" icon="lock" href="/pt-br/privacidade">
+    Mantenha código sensível fora do LLM.
+  </Card>
+</CardGroup>

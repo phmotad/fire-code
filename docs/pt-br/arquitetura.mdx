@@ -1,0 +1,127 @@
+---
+title: Arquitetura
+description: Como o Fire Code funciona por dentro — memória híbrida, grafo de dependências e execução rastreável.
+---
+
+## Visão Geral
+
+```
+Seu IDE (Claude Code / Cursor / Windsurf / OpenCode / ...)
+  ├── Hooks de Ciclo de Vida (Claude Code / IDEs com suporte a hooks)
+  │     ├── SessionStart  → inicia daemon, injeta contexto de bootstrap
+  │     ├── PostToolUse   → re-indexa arquivos alterados (Write/Edit)
+  │     └── Stop          → reservado para sumarização
+  │
+  ├── Daemon Worker (porta 37778)
+  │     ├── GET /         → dashboard web (tema escuro)
+  │     ├── GET /health   → verificação de saúde
+  │     ├── POST /index   → disparar re-indexação
+  │     ├── POST /context → recuperação de contexto híbrido
+  │     └── GET /observations → log de sessão recente
+  │
+  └── Servidor MCP (stdio)
+        ├── Camada 1 — Rápido
+        │     ├── firecode.smart_search   → busca de símbolos/conteúdo (~50 tokens/resultado)
+        │     └── firecode.smart_outline  → estrutura do arquivo (visão compacta)
+        ├── Camada 2 — Memória
+        │     ├── firecode.get_context    → recuperação híbrida vetor + grafo
+        │     ├── firecode.search_code    → similaridade semântica por embeddings
+        │     ├── firecode.get_graph      → relacionamentos de dependência (BFS, dependentes)
+        │     ├── firecode.observations   → histórico de sessão
+        │     └── firecode.corpus_search  → busca em docs de arquitetura e ADRs
+        └── Camada 3 — Execução
+              └── firecode.execute        → tarefa completa: branch → contexto → LLM → commit
+```
+
+## Armazenamento (`.firecode/`)
+
+```
+.firecode/
+  firecode.db     — SQLite: grafo, observações, corpus, sessões
+  vectors.db      — Vectra HNSW (embeddings all-MiniLM-L6-v2)
+  bootstrap.log   — estatísticas de indexação, injetadas no SessionStart
+  daemon.pid      — PID do daemon (gerenciado automaticamente)
+```
+
+## Camada de Memória Híbrida
+
+O `HybridMemory` combina dois sistemas complementares:
+
+### Busca Vetorial (Semântica)
+- Modelo: `Xenova/all-MiniLM-L6-v2` (roda 100% localmente via `@xenova/transformers`)
+- Índice: Vectra HNSW (Hierarchical Navigable Small World)
+- Cada função/arquivo indexado recebe um embedding de 384 dimensões
+- Busca por similaridade de cosseno retorna os K vizinhos mais próximos
+
+### Grafo de Dependências (Estrutural)
+- Motor: graphology + SQLite (persistência)
+- Nós: `file`, `function`, `class`, `interface`
+- Arestas: `imports`, `calls`, `extends`, `implements`
+- BFS para dependências transitivas
+- Busca reversa para dependentes
+
+### Fusão de Resultados
+```
+HybridMemory.retrieve(query, { k: 5 })
+  ├── VectorStore.search(query, k)      → resultados semânticos
+  ├── GraphStore.getNeighbors(nodes)    → contexto estrutural
+  └── merge + rank                     → resultados combinados por relevância
+```
+
+## Fluxo de Execução
+
+Quando `firecode.execute({ task })` é chamado:
+
+```
+1. GitManager.validateWorkingTree()    → verifica/faz stash de mudanças sujas
+2. GitManager.createBranch(name)       → cria firecode/<type>/<slug>
+3. HybridMemory.retrieve(task)         → busca contexto relevante
+4. CorpusService.search(task)          → verifica restrições arquiteturais
+5. CodeAgent.execute(task, context)    → prompt LLM → FileChange[]
+6. TaskExecutor.apply(changes)         → valida sintaxe + escreve arquivos
+7. Indexer.reindex(changedFiles)       → atualiza grafo + embeddings
+8. GitManager.commit(message)          → commit convencional com metadata
+9. ObservationService.record(result)   → persiste no histórico de sessão
+```
+
+## Pipeline de Indexação
+
+```
+FileScanner (glob + .gitignore)
+     ↓
+ASTParser (ts-morph para TS/JS, regex para outros)
+     ↓
+GraphBuilder → nós + arestas no SQLite
+     ↓
+EmbeddingGenerator → vetores no Vectra HNSW
+     ↓
+bootstrap.log atualizado
+```
+
+## Módulos Principais
+
+| Módulo | Arquivo | Responsabilidade |
+|--------|---------|-----------------|
+| ExecutionEngine | `src/core/ExecutionEngine.ts` | Orquestrador do fluxo completo |
+| CodeAgent | `src/agents/CodeAgent.ts` | Prompt LLM → FileChange[] |
+| HybridMemory | `src/memory/HybridMemory.ts` | Fusão vetor + grafo |
+| Indexer | `src/indexing/Indexer.ts` | Pipeline de indexação |
+| GitManager | `src/git/GitManager.ts` | Operações Git com estratégias |
+| DaemonServer | `src/daemon/DaemonServer.ts` | Servidor HTTP + dashboard |
+| CorpusService | `src/services/CorpusService.ts` | SQLite FTS5 para docs |
+| MCP Server | `src/mcp/server.ts` | Servidor MCP (stdio) com 8 ferramentas |
+
+## Providers de LLM
+
+O `ProviderFactory` cria o provider correto com base no `config.llm.provider`:
+
+```typescript
+// Todos os providers implementam a mesma interface
+interface LLMProvider {
+  complete(prompt: string, opts?: CompletionOptions): Promise<string>
+  stream(prompt: string, opts?: CompletionOptions): AsyncIterable<string>
+  name: string
+}
+```
+
+Providers disponíveis: `AnthropicProvider`, `OpenAIProvider`, `OpenRouterProvider`, `OllamaProvider`.

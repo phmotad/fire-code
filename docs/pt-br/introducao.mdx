@@ -1,0 +1,80 @@
+---
+title: Introdução
+description: O que é o Fire Code e por que ele existe?
+---
+
+# Fire Code
+
+**Fire Code** é um servidor MCP e plugin de código aberto que dá aos agentes de codificação com IA memória persistente, busca de código ciente do contexto e execução rastreável via Git.
+
+<CardGroup cols={2}>
+  <Card title="Início Rápido" icon="rocket" href="/pt-br/inicio-rapido">
+    Instale o Fire Code e indexe seu primeiro projeto em menos de 5 minutos.
+  </Card>
+  <Card title="Ferramentas MCP" icon="wrench" href="/pt-br/ferramentas-mcp">
+    Explore as 8 ferramentas MCP disponíveis para seu agente de IA.
+  </Card>
+  <Card title="Corpus de Conhecimento" icon="book" href="/pt-br/corpus-conhecimento">
+    Alimente docs de arquitetura e decisões no contexto do agente.
+  </Card>
+  <Card title="Arquitetura" icon="diagram-project" href="/pt-br/arquitetura">
+    Entenda como o Fire Code funciona por dentro.
+  </Card>
+</CardGroup>
+
+## O Problema
+
+Agentes de IA como Claude Code, Cursor e Windsurf têm janelas de contexto limitadas. Cada sessão começa do zero — sem memória de decisões passadas, sem consciência da estrutura do projeto, sem conhecimento das convenções de código. Isso leva a:
+
+- **Duplicação de código** — o agente reimplementa o que já existe
+- **Deriva arquitetural** — decisões de sessões passadas são esquecidas
+- **Sobrecarga de contexto** — você cola arquivos inteiros para dar contexto ao agente
+- **Sem rastreabilidade** — mudanças geradas por IA são difíceis de revisar e auditar
+
+## A Solução
+
+O Fire Code dá ao seu agente um **cérebro persistente**:
+
+| Problema | Solução Fire Code |
+|---------|-------------------|
+| Contexto limitado | Memória híbrida: busca vetorial + grafo de dependências |
+| Decisões esquecidas | Corpus de Conhecimento (busca full-text FTS5) |
+| Duplicação de código | Traversal do grafo encontra implementações existentes |
+| Sem rastreabilidade | Cada mudança recebe branch + commit convencional |
+| Busca lenta | Smart search + outline sobre codebase indexado |
+
+## IDEs Suportadas
+
+| IDE | Ferramentas MCP | Hooks | Instalação |
+|-----|-----------------|-------|-----------|
+| **Claude Code** | ✓ | ✓ | `fire-code install` |
+| **Cursor** | ✓ | ✓ | `fire-code install --ide cursor` |
+| **Windsurf** | ✓ | ✓ | `fire-code install --ide windsurf` |
+| **OpenCode** | ✓ | ✓ | `fire-code install --ide opencode` |
+| **Codex CLI** | ✓ | — | `fire-code install --ide codex` |
+| **Gemini CLI** | ✓ | — | `fire-code install --ide gemini` |
+| **Goose** | ✓ | — | `fire-code install --ide goose` |
+
+## Como Funciona
+
+```
+Seu Projeto
+     │
+     ▼
+fire-code index         ← escaneia arquivos, constrói grafo, gera embeddings
+     │
+     ▼
+.firecode/
+  firecode.db           ← SQLite: grafo, observações, corpus, sessões
+  vectors.db            ← Vectra HNSW: embeddings semânticos
+  bootstrap.log         ← injetado no Claude/Cursor/etc. no SessionStart
+     │
+     ▼
+Sessão do IDE
+  └── Ferramentas MCP disponíveis:
+        smart_search / smart_outline      ← encontrar coisas rapidamente
+        get_context / search_code         ← entender semanticamente
+        get_graph / corpus_search         ← conhecimento estrutural + docs
+        observations                      ← histórico de sessão
+        execute                           ← fazer mudanças com Git
+```

@@ -1,0 +1,119 @@
+---
+title: Corpus de Conhecimento
+description: Alimente docs de arquitetura, ADRs e decisões diretamente no contexto do agente.
+---
+
+O Corpus de Conhecimento permite armazenar conhecimento do projeto — decisões arquiteturais, guias de onboarding, convenções de código — em um índice de busca full-text (SQLite FTS5). O agente o consulta via `firecode.corpus_search` antes de escrever código.
+
+## Por que Isso Importa
+
+Sem um corpus, o agente não tem como saber:
+- "Usamos SHA-256+sal para senhas, nunca MD5"
+- "Sempre chame `db.users.findByEmail` antes de criar um usuário"
+- "A expiração do token é aplicada na camada de aplicação, não no banco"
+
+Essas decisões vivem na sua cabeça (ou espalhadas em docs). O corpus as traz automaticamente para o contexto do agente.
+
+## Construir o Corpus
+
+```bash
+fire-code corpus build
+```
+
+Percorre o diretório atual procurando arquivos de documentação:
+
+| Extensão | Incluído |
+|----------|----------|
+| `.md` | ✓ |
+| `.mdx` | ✓ |
+| `.txt` | ✓ |
+| `.rst` | ✓ |
+
+**Diretórios ignorados:** `node_modules`, `.git`, `dist`, `build`, `coverage`, `.firecode`
+
+### Chunking
+
+Os documentos são divididos em chunks para recuperação precisa:
+1. Primeiro por headings (`#`, `##`, `###`)
+2. Depois seções longas por parágrafo
+3. Tamanho máximo do chunk: **1500 caracteres**
+
+Cada chunk é armazenado com título, arquivo fonte e conteúdo.
+
+## Adicionar Entradas Manualmente
+
+Para entradas avulsas que não pertencem a um arquivo:
+
+```bash
+fire-code corpus prime \
+  --title "Política de Auth" \
+  --content "Senhas usam SHA-256+sal. Nunca MD5. Tokens expiram após 1 hora." \
+  --tags "segurança,auth"
+```
+
+Opções:
+| Flag | Descrição |
+|------|-----------|
+| `--title` | Título da entrada (obrigatório) |
+| `--content` | Conteúdo da entrada (obrigatório) |
+| `--tags` | Tags separadas por vírgula |
+| `--private` | Marcar como privado (excluído do LLM) |
+
+## Buscar no Corpus
+
+```bash
+fire-code corpus query "hash de senha"
+```
+
+Ou via MCP:
+```typescript
+corpus_search({ query: "política de hash de senha", limit: 3 })
+```
+
+## Exemplo: Notas de Arquitetura
+
+Crie `docs/arquitetura.md` no seu projeto:
+
+```markdown
+# Notas de Arquitetura
+
+## Fluxo de Auth
+- Todas as operações de senha passam por `crypto.ts` — nunca implemente hash diretamente.
+- Validação de email centralizada em `auth.ts::validateEmail`.
+- Geração de token usa `generateToken()` de `crypto.ts`.
+
+## Camada de Banco de Dados
+- `db.users.*` — CRUD de usuários. Sempre use `findByEmail` antes de criar um usuário.
+- `db.tokens.*` — tokens de reset/sessão.
+
+## Decisões de Design
+- Senhas são hasheadas com SHA-256 + sal. Não use MD5.
+- Tokens expiram após 1 hora. Expiração aplicada na camada de aplicação.
+- Envio de email é fire-and-forget — nunca aguarde entrega de email no caminho crítico.
+```
+
+Então execute:
+```bash
+fire-code corpus build
+```
+
+Agora quando o agente chamar `corpus_search({ query: "envio de email" })`, ele obtém:
+
+> "Envio de email é fire-and-forget — nunca aguarde entrega de email no caminho crítico."
+
+## Entradas Privadas no Corpus
+
+Marque entradas como privadas para excluí-las das respostas do LLM:
+
+```bash
+fire-code corpus prime \
+  --title "Chaves API Internas" \
+  --content "chave de staging: sk-..." \
+  --private
+```
+
+Entradas privadas são armazenadas mas nunca retornadas nos resultados de `corpus_search`.
+
+<Note>
+  Execute `fire-code corpus build` após atualizar seus docs para manter o corpus sincronizado. Considere adicioná-lo ao seu pipeline CI ou a um hook de pre-commit.
+</Note>

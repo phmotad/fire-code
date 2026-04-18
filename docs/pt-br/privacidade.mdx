@@ -1,0 +1,129 @@
+---
+title: Tags de Privacidade
+description: Mantenha código sensível e conteúdo fora do LLM e do índice.
+---
+
+O Fire Code nunca envia conteúdo privado para nenhum LLM nem o inclui nos resultados de busca semântica. A privacidade é aplicada na camada de indexação — antes de gerar embeddings ou armazenar entradas no corpus.
+
+## Tags Inline
+
+### Tag de bloco — `<private>...</private>`
+
+Envolve qualquer seção multilinha que você quer excluir:
+
+```typescript
+export function validateEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+<private>
+// Nota interna: este regex tem um edge case com TLDs .museum.
+// Ver ticket #4521. Não expor isso ao agente.
+const INTERNAL_BYPASS_LIST = ['test@internal.corp'];
+</private>
+
+export function loginUser(email: string, password: string) {
+  // ...
+}
+```
+
+O bloco `<private>` é removido antes da indexação. O código público ao redor é indexado normalmente.
+
+### Tag de linha — `// @private`
+
+Marca uma única linha como privada:
+
+```typescript
+const API_KEY = process.env.API_KEY;         // público
+const SECRET_SALT = process.env.SECRET_SALT; // @private  ← removido
+```
+
+### Tag de linha em Markdown — `# private:`
+
+Para arquivos de documentação:
+
+```markdown
+## Notas de Arquitetura Públicas
+
+Usamos event sourcing para o pipeline de pedidos.
+
+# private: Migrando para Kafka no Q3 — ainda não anunciado.
+
+## Design de API
+```
+
+## Privacidade em Nível de Arquivo
+
+Arquivos que correspondem a esses padrões **nunca são indexados**, embedados ou observados:
+
+| Padrão | Motivo |
+|--------|--------|
+| `.env`, `.env.*` | Variáveis de ambiente |
+| `*.pem` | Certificados SSL |
+| `*.key` | Chaves privadas |
+| `*.cert` | Certificados |
+| `secrets.*` | Arquivos de segredos |
+| `credentials.*` | Arquivos de credenciais |
+
+<Warning>
+  A privacidade em nível de arquivo é baseada em padrões de nome, não em conteúdo. Renomeie arquivos sensíveis para corresponder a esses padrões para garantir que sejam excluídos.
+</Warning>
+
+## Como Funciona
+
+A função `sanitizeForLLM(content, filePath?)` é chamada em cada fronteira:
+
+1. **Indexação** (`EmbeddingGenerator`) — antes de gerar embeddings
+2. **Observações** (`ObservationService`) — antes de armazenar observações
+3. **Corpus** — antes de armazenar entradas do corpus
+
+```typescript
+// src/utils/privacy.ts
+export function stripPrivate(text: string): string
+export function isPrivateFile(filePath: string): boolean
+export function sanitizeForLLM(content: string, filePath?: string): string
+```
+
+## Privacidade em Observações
+
+Quando o hook `PostToolUse` registra uma observação sobre uma mudança de arquivo, ele:
+1. Verifica `isPrivateFile(filePath)` — se verdadeiro, pula a observação completamente
+2. Executa `sanitizeForLLM(detail)` no conteúdo antes de armazenar
+
+Isso significa que arquivos privados não deixam rastros no histórico de observações.
+
+## Exemplo: Arquivo Misto
+
+```typescript
+// src/payment.ts
+
+export function createCheckoutSession(amount: number, currency: string) {
+  // implementação pública
+}
+
+<private>
+// Chave de teste Stripe — apenas para desenvolvimento
+const STRIPE_TEST_KEY = 'sk_test_abc123...';
+// Chave de produção rotaciona a cada 90 dias, armazenada no AWS Secrets Manager
+</private>
+
+export function validateWebhookSignature(payload: string, sig: string) {
+  // implementação pública
+}
+```
+
+Após a sanitização, o conteúdo indexado é:
+
+```typescript
+// src/payment.ts
+
+export function createCheckoutSession(amount: number, currency: string) {
+  // implementação pública
+}
+
+export function validateWebhookSignature(payload: string, sig: string) {
+  // implementação pública
+}
+```
+
+O bloco privado foi removido. Os embeddings e o grafo conhecem apenas a API pública.

@@ -1,0 +1,190 @@
+---
+title: Ferramentas MCP
+description: Todas as 8 ferramentas MCP disponíveis para o agente de IA, com exemplos de uso.
+---
+
+O Fire Code expõe 8 ferramentas MCP em 3 camadas. Sempre siga a ordem das camadas — isso mantém o uso de tokens mínimo.
+
+## Hierarquia de Ferramentas
+
+```
+Camada 1 — Rápido (use primeiro)
+  firecode.smart_search    → encontrar arquivos/símbolos (~50 tokens/resultado)
+  firecode.smart_outline   → ver todos os símbolos de um arquivo (~20 tokens/símbolo)
+
+Camada 2 — Memória (use quando precisar de contexto)
+  firecode.get_context     → recuperação híbrida vetor + grafo
+  firecode.search_code     → similaridade semântica por embeddings
+  firecode.get_graph       → relacionamentos de dependência
+  firecode.corpus_search   → docs de arquitetura e decisões
+  firecode.observations    → histórico de sessão
+
+Camada 3 — Execução (use por último)
+  firecode.execute         → fazer mudanças com rastreabilidade Git
+```
+
+---
+
+## Camada 1 — Rápido
+
+### `firecode.smart_search`
+
+Busca símbolos, nomes de arquivo e conteúdo no codebase indexado. Rápido, sem necessidade de embeddings.
+
+**Parâmetros:**
+| Nome | Tipo | Descrição |
+|------|------|-----------|
+| `query` | string | Nome de símbolo, fragmento de caminho ou palavra-chave |
+| `path` | string? | Restringir busca a um subdiretório |
+| `limit` | number? | Máx. de resultados (padrão: 10) |
+
+**Exemplo:**
+```typescript
+smart_search({ query: "validateEmail", path: "src" })
+// → L5  [function]  validateEmail(email: string): boolean  src/auth.ts
+```
+
+---
+
+### `firecode.smart_outline`
+
+Obtém o outline estrutural de um arquivo — todas as funções, classes, interfaces e tipos — sem ler o conteúdo completo.
+
+**Parâmetros:**
+| Nome | Tipo | Descrição |
+|------|------|-----------|
+| `file_path` | string | Caminho relativo do arquivo |
+
+**Exemplo:**
+```typescript
+smart_outline({ file_path: "src/auth.ts" })
+// → L5   export [function]  validateEmail(email: string): boolean
+// → L9   export [function]  validatePassword(password: string): boolean
+// → L16  export [function]  loginUser(email, password): Promise<User|null>
+```
+
+---
+
+## Camada 2 — Memória
+
+### `firecode.get_context`
+
+Recuperação de memória híbrida: combina busca semântica vetorial com traversal de grafo para retornar o contexto mais relevante para uma tarefa.
+
+**Parâmetros:**
+| Nome | Tipo | Descrição |
+|------|------|-----------|
+| `query` | string | Descrição em linguagem natural da tarefa |
+| `k` | number? | Número de resultados vetoriais (padrão: 5) |
+| `includeGraph` | boolean? | Incluir contexto do grafo de dependências (padrão: true) |
+
+**Exemplo:**
+```typescript
+get_context({ query: "adicionar funcionalidade de recuperação de senha" })
+// → Retorna: funções relevantes, suas dependências e chamadores
+```
+
+---
+
+### `firecode.search_code`
+
+Busca por similaridade semântica pura sobre os embeddings indexados. Ideal para encontrar código conceitualmente similar.
+
+**Parâmetros:**
+| Nome | Tipo | Descrição |
+|------|------|-----------|
+| `query` | string | Consulta em linguagem natural |
+| `k` | number? | Número de resultados (padrão: 5) |
+
+---
+
+### `firecode.get_graph`
+
+Consulta o grafo de dependências. Suporta filtragem por nó, traversal BFS e busca reversa de dependentes.
+
+**Parâmetros:**
+| Nome | Tipo | Descrição |
+|------|------|-----------|
+| `type` | string? | Filtrar por tipo: `file`, `function`, `class` |
+| `neighbors` | string? | Encontrar dependências transitivas deste nó |
+| `dependants` | string? | Encontrar tudo que depende deste nó |
+| `depth` | number? | Profundidade BFS (padrão: 2) |
+
+**Exemplos:**
+```typescript
+// Encontrar todas as dependências transitivas de auth.ts
+get_graph({ neighbors: "src/auth.ts", depth: 3 })
+
+// Encontrar tudo que importa crypto.ts
+get_graph({ dependants: "src/crypto.ts" })
+
+// Listar todos os nós de função
+get_graph({ type: "function" })
+```
+
+---
+
+### `firecode.corpus_search`
+
+Busca full-text no Corpus de Conhecimento (docs de arquitetura, ADRs, guias de onboarding).
+
+**Parâmetros:**
+| Nome | Tipo | Descrição |
+|------|------|-----------|
+| `query` | string | Consulta de busca |
+| `limit` | number? | Máx. de resultados (padrão: 5) |
+
+**Exemplo:**
+```typescript
+corpus_search({ query: "política de hash de senha" })
+// → architecture.md §Segurança: "Use SHA-256+sal. Nunca MD5."
+```
+
+---
+
+### `firecode.observations`
+
+Retorna o histórico de sessão — um registro persistente do que foi construído, corrigido e decidido em sessões passadas.
+
+**Parâmetros:**
+| Nome | Tipo | Descrição |
+|------|------|-----------|
+| `query` | string? | Filtrar observações por conteúdo |
+| `limit` | number? | Máx. de resultados (padrão: 20) |
+| `type` | string? | Filtrar por tipo: `change`, `bugfix`, `feature`, `decision` |
+
+---
+
+## Camada 3 — Execução
+
+### `firecode.execute`
+
+Execução completa de tarefa: cria um branch Git, recupera contexto, executa o CodeAgent (LLM), aplica mudanças nos arquivos, commita.
+
+**Parâmetros:**
+| Nome | Tipo | Descrição |
+|------|------|-----------|
+| `task` | string | Descrição em linguagem natural da tarefa |
+| `type` | string? | `feature`, `fix`, `refactor`, `docs` (auto-detectado se omitido) |
+| `dryRun` | boolean? | Retornar diff sem aplicar mudanças |
+| `branch` | string? | Sobrescrever nome do branch gerado automaticamente |
+
+**Exemplo:**
+```typescript
+execute({ task: "adicionar funcionalidade de recuperação de senha", type: "feature" })
+// → Cria branch: firecode/feat/recuperacao-senha
+// → Recupera contexto do HybridMemory
+// → Executa CodeAgent com LLM
+// → Aplica FileChange[] no disco
+// → Commita: feat(auth): adicionar funcionalidade de recuperação de senha
+```
+
+## Fluxo Recomendado
+
+```
+1. smart_search(query)        → encontrar implementações existentes
+2. smart_outline(arquivo)     → entender estrutura do arquivo
+3. corpus_search(query)       → verificar restrições arquiteturais
+4. get_context(query)         → obter contexto semântico + estrutural
+5. execute(tarefa)            → fazer a mudança
+```

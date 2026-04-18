@@ -45,9 +45,9 @@ program
 
 program
   .command('install')
-  .description('Install Fire Code plugin for Claude Code, Cursor, or Windsurf')
-  .option('--ide <ide>', 'Target IDE: claude-code | cursor | windsurf', 'claude-code')
-  .action(async (opts: { ide: string }) => {
+  .description('Install Fire Code plugin (auto-detects IDE, or pass --ide)')
+  .option('--ide <ide>', 'Target IDE: claude-code | cursor | windsurf | opencode | codex | gemini | goose | generic')
+  .action(async (opts: { ide?: string }) => {
     await installCommand({ ide: opts.ide });
   });
 
