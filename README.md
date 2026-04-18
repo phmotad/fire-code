@@ -376,6 +376,4 @@ MIT © FireCode Contributors
 
 <p align="center">
   Built with ❤️ for the AI coding agent community.
-  <br>
-  Inspired by <a href="https://github.com/thedotmack/claude-mem">claude-mem</a>'s plugin architecture.
 </p>
