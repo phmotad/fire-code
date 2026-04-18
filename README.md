@@ -8,7 +8,7 @@
   <a href="LICENSE">
     <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT">
   </a>
-  <img src="https://img.shields.io/badge/version-0.2.0-green.svg" alt="Version">
+  <img src="https://img.shields.io/badge/version-0.2.1-green.svg" alt="Version">
   <img src="https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen.svg" alt="Node">
   <img src="https://img.shields.io/badge/MCP-compatible-red.svg" alt="MCP">
   <img src="https://img.shields.io/badge/Claude%20Code-plugin-orange.svg" alt="Claude Code Plugin">
