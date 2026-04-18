@@ -1,0 +1,88 @@
+---
+title: Introduction
+description: What is Fire Code and why does it exist?
+---
+
+# Fire Code
+
+**Fire Code** is an open-source MCP server and Claude Code plugin that gives AI coding agents persistent memory, context-aware code search, and Git-traceable execution.
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Install Fire Code and index your first project in under 5 minutes.
+  </Card>
+  <Card title="MCP Tools" icon="wrench" href="/mcp-tools">
+    Explore the 8 MCP tools available to your AI agent.
+  </Card>
+  <Card title="Knowledge Corpus" icon="book" href="/knowledge-corpus">
+    Feed architecture docs and decisions into agent context.
+  </Card>
+  <Card title="Architecture" icon="diagram-project" href="/architecture/overview">
+    Understand how Fire Code works under the hood.
+  </Card>
+</CardGroup>
+
+## The Problem
+
+AI coding agents like Claude Code have limited context windows. Every session starts from zero — no memory of past decisions, no awareness of project structure, no knowledge of coding conventions. This leads to:
+
+- **Code duplication** — the agent reimplements what already exists
+- **Architectural drift** — decisions made in past sessions are forgotten
+- **Context overload** — you paste entire files to give the agent context
+- **No traceability** — AI-generated changes are hard to review and audit
+
+## The Solution
+
+Fire Code gives your agent a **persistent brain**:
+
+| Problem | Fire Code Solution |
+|---------|-------------------|
+| Limited context | Hybrid memory: vector search + dependency graph |
+| Forgotten decisions | Knowledge Corpus (FTS5 full-text search) |
+| Code duplication | Graph traversal finds existing implementations |
+| No traceability | Every change gets a branch + conventional commit |
+| Slow search | Smart search + outline over indexed codebase |
+
+## How It Works
+
+```
+Your Project
+     │
+     ▼
+fire-code index           ← scans files, builds graph, generates embeddings
+     │
+     ▼
+.firecode/
+  firecode.db             ← SQLite: graph, observations, corpus, sessions
+  vectors.db              ← Vectra HNSW: semantic embeddings
+  bootstrap.log           ← injected into Claude on SessionStart
+     │
+     ▼
+Claude Code Session
+  └── MCP Tools available:
+        smart_search / smart_outline     ← find things fast
+        get_context / search_code        ← understand things semantically
+        get_graph / corpus_search        ← structural + doc knowledge
+        observations                     ← session history
+        execute                          ← make changes with Git
+```
+
+## Key Features
+
+<AccordionGroup>
+  <Accordion title="Hybrid Memory">
+    Combines **vector search** (all-MiniLM-L6-v2 via @xenova/transformers) for semantic similarity with **graph traversal** (SQLite + graphology) for structural relationships. The result: context that is both semantically relevant and structurally correct.
+  </Accordion>
+  <Accordion title="Knowledge Corpus">
+    Index your `docs/`, ADRs, and architecture notes into a full-text search index (SQLite FTS5). The agent can query architecture decisions before writing code — preventing violations of design constraints.
+  </Accordion>
+  <Accordion title="Privacy Tags">
+    Mark any code, comment, or doc section as private. Fire Code strips tagged content before indexing or sending to the LLM. Files like `.env`, `*.pem`, and `secrets.*` are automatically excluded.
+  </Accordion>
+  <Accordion title="Worker Daemon">
+    A local HTTP server (port 37778) auto-started by lifecycle hooks. Provides a web dashboard, REST API for context retrieval, and instant observation access without spawning a new process each time.
+  </Accordion>
+  <Accordion title="Git Traceability">
+    Every AI-generated change gets its own branch (`firecode/<type>/<slug>`) and a conventional commit with metadata. Supports `reuse`, `increment`, and `fail` branch strategies.
+  </Accordion>
+</AccordionGroup>

@@ -1,0 +1,190 @@
+---
+title: MCP Tools
+description: All 8 MCP tools available to your AI agent, with usage examples.
+---
+
+Fire Code exposes 8 MCP tools in 3 tiers. Always follow the tier order — it keeps token usage minimal.
+
+## Tool Hierarchy
+
+```
+Tier 1 — Fast (use first)
+  firecode.smart_search    → find files/symbols (~50 tokens/result)
+  firecode.smart_outline   → see all symbols in a file (~20 tokens/symbol)
+
+Tier 2 — Memory (use when you need context)
+  firecode.get_context     → hybrid vector + graph retrieval
+  firecode.search_code     → semantic similarity over embeddings
+  firecode.get_graph       → dependency relationships
+  firecode.corpus_search   → architecture docs and decisions
+  firecode.observations    → session history
+
+Tier 3 — Execute (use last)
+  firecode.execute         → make changes with Git traceability
+```
+
+---
+
+## Tier 1 — Fast
+
+### `firecode.smart_search`
+
+Search symbols, file names, and content across your indexed codebase. Fast, no embeddings needed.
+
+**Parameters:**
+| Name | Type | Description |
+|------|------|-------------|
+| `query` | string | Symbol name, file path fragment, or content keyword |
+| `path` | string? | Restrict search to a subdirectory |
+| `limit` | number? | Max results (default: 10) |
+
+**Example:**
+```typescript
+smart_search({ query: "validateEmail", path: "src" })
+// → L5  [function]  validateEmail(email: string): boolean  src/auth.ts
+```
+
+---
+
+### `firecode.smart_outline`
+
+Get the structural outline of a file — all functions, classes, interfaces, and types — without reading the full content.
+
+**Parameters:**
+| Name | Type | Description |
+|------|------|-------------|
+| `file_path` | string | Relative path to the file |
+
+**Example:**
+```typescript
+smart_outline({ file_path: "src/auth.ts" })
+// → L5   export [function]  validateEmail(email: string): boolean
+// → L9   export [function]  validatePassword(password: string): boolean
+// → L16  export [function]  loginUser(email, password): Promise<User|null>
+```
+
+---
+
+## Tier 2 — Memory
+
+### `firecode.get_context`
+
+Hybrid memory retrieval: combines vector semantic search with graph traversal to return the most relevant context for a task.
+
+**Parameters:**
+| Name | Type | Description |
+|------|------|-------------|
+| `query` | string | Natural language description of the task |
+| `k` | number? | Number of vector results (default: 5) |
+| `includeGraph` | boolean? | Include dependency graph context (default: true) |
+
+**Example:**
+```typescript
+get_context({ query: "add forgot password feature" })
+// → Returns: relevant functions, their dependencies, and callers
+```
+
+---
+
+### `firecode.search_code`
+
+Pure semantic similarity search over your indexed embeddings. Good for finding conceptually similar code.
+
+**Parameters:**
+| Name | Type | Description |
+|------|------|-------------|
+| `query` | string | Natural language query |
+| `k` | number? | Number of results (default: 5) |
+
+---
+
+### `firecode.get_graph`
+
+Query the dependency graph. Supports node filtering, BFS traversal, and reverse dependency lookup.
+
+**Parameters:**
+| Name | Type | Description |
+|------|------|-------------|
+| `type` | string? | Filter by node type: `file`, `function`, `class` |
+| `neighbors` | string? | Find transitive dependencies of this node |
+| `dependants` | string? | Find everything that depends on this node |
+| `depth` | number? | BFS depth for neighbors/dependants (default: 2) |
+
+**Examples:**
+```typescript
+// Find all transitive dependencies of auth.ts
+get_graph({ neighbors: "src/auth.ts", depth: 3 })
+
+// Find everything that imports crypto.ts
+get_graph({ dependants: "src/crypto.ts" })
+
+// List all function nodes
+get_graph({ type: "function" })
+```
+
+---
+
+### `firecode.corpus_search`
+
+Full-text search over your Knowledge Corpus (architecture docs, ADRs, onboarding guides).
+
+**Parameters:**
+| Name | Type | Description |
+|------|------|-------------|
+| `query` | string | Search query |
+| `limit` | number? | Max results (default: 5) |
+
+**Example:**
+```typescript
+corpus_search({ query: "password hashing policy" })
+// → architecture.md §Security: "Use SHA-256+salt. Never MD5."
+```
+
+---
+
+### `firecode.observations`
+
+Returns the session history — a persistent log of what was built, fixed, and decided in past sessions.
+
+**Parameters:**
+| Name | Type | Description |
+|------|------|-------------|
+| `query` | string? | Filter observations by content |
+| `limit` | number? | Max results (default: 20) |
+| `type` | string? | Filter by type: `change`, `bugfix`, `feature`, `decision` |
+
+---
+
+## Tier 3 — Execute
+
+### `firecode.execute`
+
+Full task execution: creates a Git branch, retrieves context, runs CodeAgent (LLM), applies file changes, commits.
+
+**Parameters:**
+| Name | Type | Description |
+|------|------|-------------|
+| `task` | string | Natural language description of the task |
+| `type` | string? | `feature`, `fix`, `refactor`, `docs` (auto-detected if omitted) |
+| `dryRun` | boolean? | Return diff without applying changes |
+| `branch` | string? | Override auto-generated branch name |
+
+**Example:**
+```typescript
+execute({ task: "add forgot password feature", type: "feature" })
+// → Creates branch: firecode/feat/forgot-password
+// → Retrieves context from HybridMemory
+// → Runs CodeAgent with LLM
+// → Applies FileChange[] to disk
+// → Commits: feat(auth): add forgot password feature
+```
+
+## Recommended Workflow
+
+```
+1. smart_search(query)        → find existing implementations
+2. smart_outline(file_path)   → understand file structure
+3. corpus_search(query)       → check architecture constraints
+4. get_context(query)         → get semantic + graph context
+5. execute(task)              → make the change
+```

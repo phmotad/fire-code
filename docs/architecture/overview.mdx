@@ -1,0 +1,120 @@
+---
+title: Architecture Overview
+description: How Fire Code's components fit together.
+---
+
+## System Overview
+
+```
+┌─────────────────────────────────────────────────┐
+│                  Claude Code                    │
+│                                                 │
+│  ┌──────────────┐     ┌──────────────────────┐  │
+│  │   Lifecycle  │     │     MCP Client       │  │
+│  │    Hooks     │     │  (calls firecode.*)  │  │
+│  └──────┬───────┘     └──────────┬───────────┘  │
+└─────────│────────────────────────│──────────────┘
+          │                        │ stdio
+          ▼                        ▼
+┌─────────────────┐    ┌──────────────────────────┐
+│  Daemon Server  │    │       MCP Server         │
+│  :37778         │    │                          │
+│                 │    │  smart_search             │
+│  /health        │    │  smart_outline            │
+│  /             │    │  get_context              │
+│  /index         │    │  search_code              │
+│  /context       │    │  get_graph                │
+│  /observations  │    │  corpus_search            │
+│  /corpus        │    │  observations             │
+└────────┬────────┘    │  execute                  │
+         │             └────────────┬─────────────┘
+         │                          │
+         └──────────────┬───────────┘
+                        │
+                        ▼
+┌───────────────────────────────────────────────────┐
+│                   Core Layer                      │
+│                                                   │
+│  ┌────────────────┐   ┌────────────────────────┐  │
+│  │ ExecutionEngine│   │    HybridMemory        │  │
+│  │                │   │                        │  │
+│  │ 1. validate    │   │  VectraVectorStore     │  │
+│  │ 2. branch      │   │  (HNSW embeddings)     │  │
+│  │ 3. context     │   │                        │  │
+│  │ 4. CodeAgent   │   │  SQLiteGraphStore      │  │
+│  │ 5. apply       │   │  (graphology BFS)      │  │
+│  │ 6. commit      │   └────────────────────────┘  │
+│  │ 7. update mem  │                               │
+│  └────────────────┘                               │
+└───────────────────────────────────────────────────┘
+                        │
+                        ▼
+┌───────────────────────────────────────────────────┐
+│                  Storage Layer                    │
+│                                                   │
+│  .firecode/firecode.db  (SQLite)                  │
+│    ├── graph_nodes / graph_edges                  │
+│    ├── observations                               │
+│    ├── corpus + corpus_fts (FTS5)                 │
+│    └── sessions                                   │
+│                                                   │
+│  .firecode/vectors.db   (Vectra HNSW)             │
+│    └── embedding index (all-MiniLM-L6-v2)        │
+└───────────────────────────────────────────────────┘
+```
+
+## Component Responsibilities
+
+| Component | File | Responsibility |
+|-----------|------|---------------|
+| MCP Server | `src/mcp/server.ts` | Stdio transport, tool routing, input validation |
+| Daemon Server | `src/daemon/DaemonServer.ts` | HTTP API, web dashboard, PID management |
+| ExecutionEngine | `src/core/ExecutionEngine.ts` | Orchestrates the full task lifecycle |
+| CodeAgent | `src/agents/CodeAgent.ts` | LLM prompt → FileChange[] application |
+| HybridMemory | `src/memory/HybridMemory.ts` | Combines vector + graph context retrieval |
+| SQLiteGraphStore | `src/graph/SQLiteGraphStore.ts` | SQLite persistence + graphology BFS traversal |
+| VectraVectorStore | `src/vector/VectraVectorStore.ts` | HNSW approximate nearest-neighbor search |
+| DatabaseManager | `src/db/DatabaseManager.ts` | SQLite singleton factory, observations, corpus |
+| Indexer | `src/indexing/Indexer.ts` | Orchestrates scanning → AST → graph → embeddings |
+| GitManager | `src/git/GitManager.ts` | Branch creation, stash, commit strategies |
+| CorpusService | `src/services/CorpusService.ts` | Walk docs, chunk, FTS5 upsert |
+| ObservationService | `src/services/ObservationService.ts` | Record what the agent built/fixed |
+| PrivacyUtils | `src/utils/privacy.ts` | Strip private tags, block private files |
+
+## Data Flow: Task Execution
+
+```
+User → execute({ task: "add forgot password" })
+         │
+         ▼
+  ExecutionEngine.run()
+    │
+    ├─ 1. GitManager.validateWorkingTree()  → stash if needed
+    ├─ 2. GitManager.createBranch()         → firecode/feat/forgot-password
+    ├─ 3. HybridMemory.retrieve(task)
+    │       ├─ VectraVectorStore.search()   → semantic matches
+    │       └─ SQLiteGraphStore.bfs()       → dependency context
+    ├─ 4. CodeAgent.execute(task, context)
+    │       ├─ build prompt
+    │       ├─ call LLM provider
+    │       └─ parse FileChange[]
+    ├─ 5. TaskExecutor.apply(changes)       → write files to disk
+    ├─ 6. GitManager.commit()               → conventional commit
+    └─ 7. Indexer.index(changedFiles)       → re-index changed files
+```
+
+## Data Flow: Indexing
+
+```
+fire-code index
+         │
+         ▼
+  Indexer.index()
+    │
+    ├─ FileScanner.scan()       → glob + .gitignore + privacy filter
+    ├─ ASTParser.parse()        → ts-morph: functions, imports, exports
+    ├─ GraphBuilder.build()     → SQLiteGraphStore.addNode/addEdge
+    └─ EmbeddingGenerator.generate()
+            ├─ @xenova/transformers (all-MiniLM-L6-v2)
+            └─ VectraVectorStore.add()
+```

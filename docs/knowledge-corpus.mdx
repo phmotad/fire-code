@@ -1,0 +1,119 @@
+---
+title: Knowledge Corpus
+description: Feed architecture docs, ADRs, and decisions directly into agent context.
+---
+
+The Knowledge Corpus lets you store project knowledge — architecture decisions, onboarding guides, coding conventions — in a full-text search index (SQLite FTS5). The agent queries it via `firecode.corpus_search` before writing code.
+
+## Why It Matters
+
+Without a corpus, the agent has no way to know:
+- "We use SHA-256+salt for passwords, never MD5"
+- "Always call `db.users.findByEmail` before creating a user"
+- "Token expiry is enforced at the application layer, not the DB"
+
+These decisions live in your head (or scattered across docs). The corpus brings them into the agent's context automatically.
+
+## Build the Corpus
+
+```bash
+fire-code corpus build
+```
+
+Walks the current directory looking for documentation files:
+
+| Extension | Included |
+|-----------|----------|
+| `.md` | ✓ |
+| `.mdx` | ✓ |
+| `.txt` | ✓ |
+| `.rst` | ✓ |
+
+**Skipped directories:** `node_modules`, `.git`, `dist`, `build`, `coverage`, `.firecode`
+
+### Chunking
+
+Documents are split into chunks for accurate retrieval:
+1. First split on headings (`#`, `##`, `###`)
+2. Then split long sections by paragraph
+3. Max chunk size: **1500 characters**
+
+Each chunk is stored with its title, source file, and content.
+
+## Add Entries Manually
+
+For one-off entries that don't belong in a file:
+
+```bash
+fire-code corpus prime \
+  --title "Auth Policy" \
+  --content "Passwords use SHA-256+salt. Never MD5. Tokens expire after 1 hour." \
+  --tags "security,auth"
+```
+
+Options:
+| Flag | Description |
+|------|-------------|
+| `--title` | Entry title (required) |
+| `--content` | Entry content (required) |
+| `--tags` | Comma-separated tags |
+| `--private` | Mark as private (excluded from LLM) |
+
+## Search the Corpus
+
+```bash
+fire-code corpus query "password hashing"
+```
+
+Or via MCP:
+```typescript
+corpus_search({ query: "password hashing policy", limit: 3 })
+```
+
+## Example: Architecture Notes
+
+Create `docs/architecture.md` in your project:
+
+```markdown
+# Architecture Notes
+
+## Auth Flow
+- All password operations go through `crypto.ts` — never implement hashing directly.
+- Email validation is centralized in `auth.ts::validateEmail`.
+- Token generation uses `generateToken()` from `crypto.ts`.
+
+## Database Layer
+- `db.users.*` — user CRUD. Always use `findByEmail` before creating a user.
+- `db.tokens.*` — reset/session tokens.
+
+## Design Decisions
+- Passwords are hashed with SHA-256 + salt. Do not use MD5.
+- Tokens expire after 1 hour. Expiry is enforced at the application layer.
+- Email sending is fire-and-forget — never await email delivery in the critical path.
+```
+
+Then run:
+```bash
+fire-code corpus build
+```
+
+Now when the agent asks `corpus_search({ query: "email sending" })`, it gets:
+
+> "Email sending is fire-and-forget — never await email delivery in the critical path."
+
+## Private Corpus Entries
+
+Mark corpus entries as private to exclude them from LLM responses:
+
+```bash
+fire-code corpus prime \
+  --title "Internal API Keys" \
+  --content "staging key: sk-..." \
+  --private
+```
+
+Private entries are stored but never returned in `corpus_search` results.
+
+<Note>
+  Run `fire-code corpus build` after updating your docs to keep the corpus in sync. Consider adding it to your CI pipeline or a pre-commit hook.
+</Note>

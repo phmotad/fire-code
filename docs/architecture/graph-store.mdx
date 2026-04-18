@@ -1,0 +1,117 @@
+---
+title: Graph Store
+description: SQLite + graphology — how the dependency graph works.
+---
+
+## Design
+
+`SQLiteGraphStore` uses two technologies for two purposes:
+
+| Technology | Purpose |
+|-----------|---------|
+| `better-sqlite3` | Persistent storage (survives process restarts) |
+| `graphology` (in-process) | Fast BFS traversal and neighbor queries |
+
+They are kept **in sync on every write**: `addNode()` and `addEdge()` write to both SQLite and the in-memory graphology graph simultaneously.
+
+## Schema
+
+```sql
+CREATE TABLE graph_nodes (
+  id      TEXT NOT NULL,
+  project TEXT NOT NULL,
+  type    TEXT NOT NULL,   -- 'file' | 'function' | 'class' | 'commit'
+  label   TEXT NOT NULL,
+  data    TEXT,            -- JSON blob for extra metadata
+  PRIMARY KEY (id, project)
+);
+
+CREATE TABLE graph_edges (
+  id       TEXT NOT NULL,
+  project  TEXT NOT NULL,
+  from_id  TEXT NOT NULL,
+  to_id    TEXT NOT NULL,
+  type     TEXT NOT NULL,  -- 'contains' | 'imports' | 'calls' | 'exports'
+  label    TEXT,
+  PRIMARY KEY (id, project)
+);
+```
+
+## Node Types
+
+| Type | Example ID | Created by |
+|------|-----------|------------|
+| `file` | `src/auth.ts` | `GraphBuilder` on indexing |
+| `function` | `validateEmail` | `ASTParser` |
+| `class` | `DatabaseManager` | `ASTParser` |
+| `commit` | `abc1234` | `GitManager` after commit |
+
+## Edge Types
+
+| Type | Meaning |
+|------|---------|
+| `contains` | File → Function/Class it defines |
+| `imports` | File → File it imports |
+| `calls` | Function → Function it calls |
+| `exports` | File → Symbol it exports |
+
+## Traversal API
+
+```typescript
+// BFS forward — transitive dependencies
+graphStore.reachableFrom(nodeId: string, maxDepth?: number): GraphNode[]
+
+// BFS reverse — everything that depends on this node
+graphStore.dependantsOf(nodeId: string): GraphNode[]
+
+// Direct neighbors
+graphStore.getNeighbors(nodeId: string): GraphNode[]
+
+// Raw BFS (low-level)
+graphStore.bfs(startId: string, maxDepth: number): GraphNode[]
+```
+
+## Implementation Detail: graphology
+
+```typescript
+import { bfsFromNode } from 'graphology-traversal';
+const { DirectedGraph } = require('graphology');
+
+class SQLiteGraphStore {
+  private g: AbstractGraph<any, any, any>;
+
+  constructor(db: Database, project: string) {
+    this.g = new DirectedGraph();
+    this.load(); // populate graphology from SQLite on startup
+  }
+
+  addNode(node: GraphNode): void {
+    // write to SQLite
+    this.db.prepare('INSERT OR REPLACE INTO graph_nodes ...').run(...);
+    // write to graphology
+    if (!this.g.hasNode(node.id)) this.g.addNode(node.id, node);
+  }
+
+  reachableFrom(id: string, maxDepth = 3): GraphNode[] {
+    const visited: GraphNode[] = [];
+    bfsFromNode(this.g, id, (nodeId, attr, depth) => {
+      if (depth > maxDepth) return true; // stop
+      visited.push(attr);
+    });
+    return visited;
+  }
+}
+```
+
+## Why Not Pure SQLite?
+
+Recursive CTEs in SQLite can handle BFS, but:
+- They're verbose and hard to maintain
+- `graphology-traversal`'s `bfsFromNode` is battle-tested
+- In-memory traversal is faster than DB round-trips for small-medium graphs
+
+The trade-off: memory usage grows with graph size. For projects with >10k nodes, this may need revisiting.
+
+## Why Not Neo4j?
+
+Neo4j is powerful but requires a separate server process. Fire Code is designed to be zero-infrastructure — `npm install -g` and you're done. SQLite + graphology achieves 95% of what Neo4j would for typical project sizes.

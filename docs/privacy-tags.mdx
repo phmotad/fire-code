@@ -1,0 +1,129 @@
+---
+title: Privacy Tags
+description: Keep sensitive code and content out of the LLM and the index.
+---
+
+Fire Code never sends private content to any LLM or includes it in semantic search results. Privacy is enforced at the indexing layer — before embeddings are generated or corpus entries are stored.
+
+## Inline Tags
+
+### Block tag — `<private>...</private>`
+
+Wraps any multi-line section you want excluded:
+
+```typescript
+export function validateEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+<private>
+// Internal note: this regex has a known edge case with .museum TLDs.
+// See ticket #4521. Do not expose this to the agent.
+const INTERNAL_BYPASS_LIST = ['test@internal.corp'];
+</private>
+
+export function loginUser(email: string, password: string) {
+  // ...
+}
+```
+
+The `<private>` block is stripped before indexing. The surrounding public code is indexed normally.
+
+### Line tag — `// @private`
+
+Marks a single line as private:
+
+```typescript
+const API_KEY = process.env.API_KEY;         // public
+const SECRET_SALT = process.env.SECRET_SALT; // @private  ← stripped
+```
+
+### Markdown line tag — `# private:`
+
+For documentation files:
+
+```markdown
+## Public Architecture Notes
+
+We use event sourcing for the order pipeline.
+
+# private: We're migrating to Kafka in Q3 — not announced yet.
+
+## API Design
+```
+
+## File-Level Privacy
+
+Files matching these patterns are **never indexed**, never embedded, and never observed:
+
+| Pattern | Reason |
+|---------|--------|
+| `.env`, `.env.*` | Environment variables |
+| `*.pem` | SSL certificates |
+| `*.key` | Private keys |
+| `*.cert` | Certificates |
+| `secrets.*` | Secret files |
+| `credentials.*` | Credential files |
+
+<Warning>
+  File-level privacy is based on filename patterns, not content. Rename sensitive files to match these patterns to ensure they're excluded.
+</Warning>
+
+## How It Works
+
+The `sanitizeForLLM(content, filePath?)` function is called at every boundary:
+
+1. **Indexing** (`EmbeddingGenerator`) — before generating embeddings
+2. **Observations** (`ObservationService`) — before storing observations
+3. **Corpus** — before storing corpus entries
+
+```typescript
+// src/utils/privacy.ts
+export function stripPrivate(text: string): string
+export function isPrivateFile(filePath: string): boolean
+export function sanitizeForLLM(content: string, filePath?: string): string
+```
+
+## Observation Privacy
+
+When the `PostToolUse` hook records an observation about a file change, it:
+1. Checks `isPrivateFile(filePath)` — if true, skips the observation entirely
+2. Runs `sanitizeForLLM(detail)` on the content before storing
+
+This means private files leave no trace in the observation history.
+
+## Example: Mixed File
+
+```typescript
+// src/payment.ts
+
+export function createCheckoutSession(amount: number, currency: string) {
+  // public implementation
+}
+
+<private>
+// Stripe test key — only for development
+const STRIPE_TEST_KEY = 'sk_test_abc123...';
+// Production key rotates every 90 days, stored in AWS Secrets Manager
+</private>
+
+export function validateWebhookSignature(payload: string, sig: string) {
+  // public implementation
+}
+```
+
+After sanitization, the indexed content is:
+
+```typescript
+// src/payment.ts
+
+export function createCheckoutSession(amount: number, currency: string) {
+  // public implementation
+}
+
+export function validateWebhookSignature(payload: string, sig: string) {
+  // public implementation
+}
+```
+
+The private block is gone. The embeddings and graph only know about the public API.

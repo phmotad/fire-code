@@ -1,0 +1,176 @@
+---
+title: CLI Reference
+description: All fire-code CLI commands.
+---
+
+## Setup
+
+### `fire-code install`
+
+Install the plugin into your IDE configuration.
+
+```bash
+fire-code install                  # Claude Code (default)
+fire-code install --ide cursor     # Cursor
+fire-code install --ide windsurf   # Windsurf
+```
+
+Registers:
+- MCP server (`firecode.*` tools)
+- Lifecycle hooks (`SessionStart`, `PostToolUse`, `Stop`)
+
+---
+
+### `fire-code uninstall`
+
+Remove the plugin from your IDE configuration.
+
+```bash
+fire-code uninstall
+fire-code uninstall --ide cursor
+```
+
+---
+
+### `fire-code init`
+
+Interactive setup wizard. Creates `firecode.config.ts` in the current directory.
+
+```bash
+fire-code init
+```
+
+Prompts for:
+- Project name
+- LLM provider + API key
+- Git strategy
+- Indexing include/exclude patterns
+
+---
+
+### `fire-code update`
+
+Update Fire Code to the latest version.
+
+```bash
+fire-code update
+```
+
+Runs `npm install -g @phmotad/fire-code@latest`.
+
+---
+
+## Indexing
+
+### `fire-code index`
+
+Index the current project.
+
+```bash
+fire-code index                 # lazy mode (skips unchanged files)
+fire-code index --mode full     # full re-index
+fire-code index --cwd /path     # index a different directory
+```
+
+**Output:**
+```
+✓ Scanned 142 files
+✓ Parsed 387 functions
+✓ Built graph: 529 nodes, 1204 edges
+✓ Generated 142 embeddings
+✓ Done in 4.2s
+```
+
+---
+
+## Corpus
+
+### `fire-code corpus build`
+
+Build the knowledge corpus from documentation files.
+
+```bash
+fire-code corpus build
+fire-code corpus build --cwd /path/to/project
+```
+
+Walks `.md`, `.mdx`, `.txt`, `.rst` files and chunks them into the SQLite FTS5 index.
+
+---
+
+### `fire-code corpus prime`
+
+Add a single entry to the corpus manually.
+
+```bash
+fire-code corpus prime \
+  --title "Auth Policy" \
+  --content "Passwords use SHA-256+salt. Never MD5." \
+  --tags "security,auth"
+
+# Mark as private (never returned to LLM)
+fire-code corpus prime \
+  --title "Internal Notes" \
+  --content "..." \
+  --private
+```
+
+---
+
+### `fire-code corpus query`
+
+Search the corpus from the CLI.
+
+```bash
+fire-code corpus query "password hashing"
+fire-code corpus query "email sending" --limit 3
+```
+
+---
+
+## Daemon
+
+### `fire-code daemon start`
+
+Start the daemon in the background (detached process).
+
+```bash
+fire-code daemon start
+```
+
+The daemon runs on port **37778**. Dashboard: `http://localhost:37778`.
+
+---
+
+### `fire-code daemon stop`
+
+Stop the daemon.
+
+```bash
+fire-code daemon stop
+```
+
+---
+
+### `fire-code daemon status`
+
+Show daemon status.
+
+```bash
+fire-code daemon status
+# → Daemon running (PID 12345, port 37778, uptime 2h 14m)
+```
+
+---
+
+## Development
+
+### `fire-code dev`
+
+Start the MCP server in stdio mode (for testing/development).
+
+```bash
+fire-code dev
+```
+
+This is the mode used by Claude Code when connecting to the MCP server. You can use this to test tools manually.

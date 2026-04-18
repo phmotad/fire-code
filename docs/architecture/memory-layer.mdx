@@ -1,0 +1,101 @@
+---
+title: Memory Layer
+description: How hybrid memory combines vector search and graph traversal.
+---
+
+Fire Code's memory layer combines two complementary retrieval strategies into a single `HybridMemory.retrieve()` call.
+
+## Vector Search (Semantic)
+
+**Implementation:** `VectraVectorStore` using the `vectra` package (HNSW approximate nearest-neighbor)
+
+**Model:** `Xenova/all-MiniLM-L6-v2` via `@xenova/transformers` — runs entirely offline, no API calls
+
+**Storage:** `.firecode/vectors.db` (Vectra's on-disk HNSW index)
+
+```typescript
+// How it works
+const results = await vectorStore.search(query, k);
+// Returns: ScoredDocument[] with cosine similarity scores
+```
+
+Each indexed file contributes one document per function/class (with its source snippet as content). The query is embedded with the same model and compared via cosine similarity.
+
+**Strengths:**
+- Finds semantically similar code even with different variable names
+- Works for natural language queries ("forgot password flow")
+- No structural knowledge required
+
+**Limitations:**
+- Doesn't know about dependencies or callers
+- Can surface irrelevant results if the codebase has many similar patterns
+
+## Graph Traversal (Structural)
+
+**Implementation:** `SQLiteGraphStore` — persists to SQLite, uses `graphology` in-process for BFS
+
+**Storage:** `.firecode/firecode.db` tables: `graph_nodes`, `graph_edges`
+
+```typescript
+// Nodes
+{ id: "src/auth.ts", type: "file", label: "auth.ts" }
+{ id: "validateEmail", type: "function", label: "validateEmail" }
+
+// Edges
+{ from: "src/auth.ts", to: "validateEmail", type: "contains" }
+{ from: "src/login.ts", to: "src/auth.ts", type: "imports" }
+```
+
+**Queries:**
+```typescript
+// Transitive dependencies (BFS forward)
+graphStore.reachableFrom("src/auth.ts", depth: 3)
+
+// Reverse dependencies (who depends on this?)
+graphStore.dependantsOf("src/crypto.ts")
+
+// Direct neighbors
+graphStore.getNeighbors("validateEmail")
+```
+
+**Strengths:**
+- Knows the exact dependency chain
+- Finds all callers and all dependencies
+- Structural correctness — no false positives
+
+**Limitations:**
+- Requires accurate import resolution
+- Doesn't understand semantic intent
+
+## Hybrid Retrieval
+
+`HybridMemory.retrieve(query, opts)` combines both:
+
+```typescript
+// 1. Vector search: top-K semantically similar nodes
+const vectorResults = await vectorStore.search(query, k);
+
+// 2. For each vector result, expand via graph
+const graphContext = [];
+for (const result of vectorResults) {
+  const neighbors = graphStore.getNeighbors(result.id);
+  graphContext.push(...neighbors);
+}
+
+// 3. Merge and deduplicate
+return mergeRanked(vectorResults, graphContext);
+```
+
+The result: context that is **semantically relevant** (found the right area) and **structurally complete** (includes all dependencies and callers).
+
+## Fallback Memory
+
+`FallbackMemory` activates when the index doesn't exist or is stale:
+
+| Condition | Fallback |
+|-----------|----------|
+| No vector index | Text search over raw files |
+| No graph | Import analysis (regex-based) |
+| No files | Return empty context |
+
+The agent always gets *some* context — it never fails silently.

@@ -1,0 +1,93 @@
+{
+  "$schema": "https://mintlify.com/schema.json",
+  "name": "Fire Code",
+  "logo": {
+    "light": "/logo/light.svg",
+    "dark": "/logo/dark.svg"
+  },
+  "favicon": "/favicon.svg",
+  "colors": {
+    "primary": "#ff6b35",
+    "light": "#ff8c5a",
+    "dark": "#e5531a",
+    "anchors": {
+      "from": "#ff6b35",
+      "to": "#e5531a"
+    }
+  },
+  "topbarLinks": [
+    {
+      "name": "GitHub",
+      "url": "https://github.com/phmotad/fire-code"
+    }
+  ],
+  "topbarCtaButton": {
+    "name": "Install",
+    "url": "https://www.npmjs.com/package/@phmotad/fire-code"
+  },
+  "tabs": [
+    {
+      "name": "API Reference",
+      "url": "api-reference"
+    }
+  ],
+  "anchors": [
+    {
+      "name": "npm",
+      "icon": "npm",
+      "url": "https://www.npmjs.com/package/@phmotad/fire-code"
+    },
+    {
+      "name": "GitHub",
+      "icon": "github",
+      "url": "https://github.com/phmotad/fire-code"
+    },
+    {
+      "name": "Issues",
+      "icon": "circle-exclamation",
+      "url": "https://github.com/phmotad/fire-code/issues"
+    }
+  ],
+  "navigation": [
+    {
+      "group": "Get Started",
+      "pages": [
+        "introduction",
+        "quickstart",
+        "configuration"
+      ]
+    },
+    {
+      "group": "Features",
+      "pages": [
+        "mcp-tools",
+        "knowledge-corpus",
+        "privacy-tags",
+        "daemon"
+      ]
+    },
+    {
+      "group": "Reference",
+      "pages": [
+        "cli-reference"
+      ]
+    },
+    {
+      "group": "Architecture",
+      "pages": [
+        "architecture/overview",
+        "architecture/memory-layer",
+        "architecture/graph-store"
+      ]
+    }
+  ],
+  "footerSocials": {
+    "github": "https://github.com/phmotad/fire-code",
+    "npm": "https://www.npmjs.com/package/@phmotad/fire-code"
+  },
+  "feedback": {
+    "thumbsRating": true,
+    "suggestEdit": true,
+    "raiseIssue": true
+  }
+}
