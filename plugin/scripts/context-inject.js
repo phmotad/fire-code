@@ -149,12 +149,10 @@ try {
         if (obs.length > 0) parts.push(obs.join('\n'));
       }
 
-      parts.push('Tools: firecode.smart_search | get_context | corpus_search | observations | execute');
-
-      // Agent role guide — compact
       parts.push(
-        'Branch convention: firecode/{agent}/{type}/{slug}\n' +
-        '  agent: supervisor (plan/review) | dev (implement) | review (audit)'
+        'Tools: smart_search | smart_outline | get_context | corpus_search | observations | execute\n' +
+        'Auto-trigger rules → see FIRECODE.md in project root (if present)\n' +
+        'Branch: firecode/{supervisor|dev|review}/{type}/{slug}'
       );
 
       silentContinue(parts.join('\n'));

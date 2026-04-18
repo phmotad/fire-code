@@ -7,13 +7,16 @@ Fire Code is a Claude Code **plugin** and **MCP server** that gives AI coding ag
 ## Key Architecture
 
 ```
-src/mcp/server.ts          — MCP server with 9 tools
+src/mcp/server.ts          — MCP server with 8 tools
 src/core/ExecutionEngine.ts — orchestrates the full task flow
 src/agents/CodeAgent.ts    — LLM prompt → FileChange[] application
 src/memory/HybridMemory.ts — vector search + graph traversal
 src/indexing/Indexer.ts    — file scanning, AST parsing, embeddings
 src/git/GitManager.ts      — branch/commit/stash strategies
+src/git/CommitFormatter.ts — AgentRole, buildBranchName, conventional commits
 plugin/hooks/hooks.json    — Claude Code lifecycle hooks
+plugin/.claude-plugin/plugin.json — systemPrompt for autonomous tool use
+plugin/FIRECODE.md         — agent trigger rules template (copied to user projects)
 ```
 
 ## MCP Tool Hierarchy (always follow this order)
@@ -23,6 +26,16 @@ plugin/hooks/hooks.json    — Claude Code lifecycle hooks
 3. `firecode.corpus_search` — check architecture docs and decisions
 4. `firecode.get_context` — semantic + graph context
 5. `firecode.execute` — make changes last
+
+## Agent Roles & Branch Convention
+
+```
+firecode/supervisor/feat/slug  — planning, design, coordination
+firecode/dev/fix/slug          — implementation, bugfixes
+firecode/review/chore/slug     — audits, code review
+```
+
+Pass `agent: 'dev' | 'supervisor' | 'review'` to `firecode.execute()`.
 
 ## Code Conventions
 
@@ -37,13 +50,14 @@ plugin/hooks/hooks.json    — Claude Code lifecycle hooks
 
 ```bash
 npm run lint    # type check
-npm test        # all tests (84 passing)
+npm test        # all tests (105 passing)
 npm run build   # tsc build
 ```
 
 ## Important Files
 
 - `src/config/types.ts` — full `FireCodeConfig` Zod schema
+- `src/git/CommitFormatter.ts` — `AgentRole`, `buildBranchName`, commit format
 - `src/utils/errors.ts` — `FireCodeError`, `ConfigError`, `GitError`, `IndexError`, etc.
 - `src/utils/paths.ts` — `.firecode/` directory helpers
 - `src/utils/zodToJsonSchema.ts` — minimal Zod→JSON Schema converter

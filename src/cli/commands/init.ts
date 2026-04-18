@@ -1,8 +1,49 @@
-import { existsSync, writeFileSync, mkdirSync } from 'fs';
-import { join } from 'path';
+import { existsSync, writeFileSync, readFileSync, mkdirSync } from 'fs';
+import { join, resolve } from 'path';
 import chalk from 'chalk';
 import inquirer from 'inquirer';
 import { ensureFireCodeDir } from '../../utils/paths.js';
+
+const PLUGIN_ROOT = resolve(__dirname, '..', '..', '..');
+
+function writeFirecodeAgentMd(cwd: string): void {
+  const dest = join(cwd, 'FIRECODE.md');
+  if (existsSync(dest)) return; // never overwrite user edits
+  try {
+    const src = join(PLUGIN_ROOT, 'plugin', 'FIRECODE.md');
+    const content = existsSync(src)
+      ? readFileSync(src, 'utf8')
+      : generateAgentMd();
+    writeFileSync(dest, content, 'utf8');
+  } catch { /* best-effort */ }
+}
+
+function generateAgentMd(): string {
+  return `# Fire Code — Agent Instructions
+
+> Read automatically by Claude Code. Do not delete.
+
+You have Fire Code MCP tools. **Use them without waiting to be asked.**
+
+## Autonomous Triggers
+
+| Situation | Call |
+|---|---|
+| Before writing any code | \`firecode.smart_search({ query })\` then \`firecode.corpus_search({ query })\` |
+| Before reading a file | \`firecode.smart_outline({ file_path })\` |
+| Task touches > 2 files | \`firecode.get_context({ query: task })\` |
+| Implement / fix / refactor | \`firecode.execute({ task, agent: "dev" })\` |
+| Plan / design / coordinate | \`firecode.execute({ task, agent: "supervisor" })\` |
+| Audit / review / inspect | \`firecode.execute({ task, agent: "review" })\` |
+| Recall past work | \`firecode.observations({ query })\` |
+
+## Do NOT
+- Read entire files when \`smart_outline\` suffices
+- Write code directly when \`firecode.execute\` can do it with Git traceability
+- Use grep/glob for symbols — use \`firecode.smart_search\`
+- Implement without searching first — duplication is the main cost
+`;
+}
 
 interface InitAnswers {
   projectName: string;
@@ -175,9 +216,11 @@ export default config;
   const configPath = join(cwd, 'firecode.config.ts');
   writeFileSync(configPath, config);
   ensureFireCodeDir(cwd);
+  writeFirecodeAgentMd(cwd);
 
   console.log('\n' + chalk.green('✓ Created firecode.config.ts'));
   console.log(chalk.green('✓ Created .firecode/'));
+  console.log(chalk.green('✓ Created FIRECODE.md') + chalk.gray(' — agent autonomous trigger rules'));
   console.log('\n' + chalk.bold('Next steps:'));
   console.log(chalk.gray('  1. ') + chalk.white('fire-code index') + chalk.gray('   — index your project'));
   console.log(chalk.gray('  2. ') + chalk.white('fire-code dev') + chalk.gray('     — start MCP server'));

@@ -1,17 +1,18 @@
 {
   "name": "fire-code",
-  "version": "0.1.0",
+  "version": "0.2.5",
   "description": "Intelligent MCP execution engine for AI coding agents — persistent memory, context-aware, Git-traceable",
   "author": {
     "name": "FireCode Contributors",
-    "url": "https://github.com/YOUR_USERNAME/fire-code"
+    "url": "https://github.com/phmotad/fire-code"
   },
   "license": "MIT",
-  "repository": "https://github.com/YOUR_USERNAME/fire-code",
+  "repository": "https://github.com/phmotad/fire-code",
   "mcp": {
     "command": "npx",
-    "args": ["fire-code", "dev"],
-    "description": "Fire Code MCP server (smart_search, smart_outline, get_context, search_code, get_graph, execute)"
+    "args": ["@phmotad/fire-code", "dev"],
+    "description": "Fire Code MCP server — smart_search, smart_outline, get_context, search_code, get_graph, corpus_search, observations, execute"
   },
-  "hooks": "./hooks/hooks.json"
+  "hooks": "./hooks/hooks.json",
+  "systemPrompt": "You have Fire Code MCP tools. Invoke them AUTONOMOUSLY — do not wait for the user to ask.\n\n## Mandatory triggers (no user prompt needed)\n\nBEFORE writing or editing any code:\n  1. firecode.smart_search({ query }) — find existing implementations, prevent duplication\n  2. firecode.corpus_search({ query }) — check architectural constraints and conventions\n\nBEFORE reading a file:\n  → firecode.smart_outline({ file_path }) — scan structure without consuming full-file tokens\n\nWHEN starting a task that touches > 2 files:\n  → firecode.get_context({ query: task }) — retrieve semantic + graph context first\n\nWHEN user asks you to implement, fix, or refactor:\n  → firecode.execute({ task, agent: 'dev' }) — creates firecode/dev/{type}/{slug} branch, commits\n\nWHEN user asks you to plan, design, or coordinate:\n  → firecode.execute({ task, agent: 'supervisor' }) — creates firecode/supervisor/{type}/{slug}\n\nWHEN user asks you to audit, review, or inspect:\n  → firecode.execute({ task, agent: 'review' }) — creates firecode/review/{type}/{slug}\n\nWHEN recalling past decisions or history:\n  → firecode.observations({ query }) — check session history before re-implementing\n\n## What NOT to do\n- Do NOT read entire files when smart_outline suffices\n- Do NOT write code directly when firecode.execute handles it with Git traceability\n- Do NOT search grep/glob for symbols when firecode.smart_search is faster\n- Do NOT duplicate what already exists — always search first"
 }
