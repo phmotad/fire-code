@@ -257,7 +257,7 @@ The dashboard shows real-time project stats, recent observations, and allows tri
 Create `firecode.config.ts` in your project root (or run `fire-code init`):
 
 ```typescript
-import type { FireCodeConfig } from 'fire-code';
+import type { FireCodeConfig } from '@phmotad/fire-code';
 
 export default {
   project: {

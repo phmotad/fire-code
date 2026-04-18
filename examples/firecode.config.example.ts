@@ -1,4 +1,4 @@
-import type { FireCodeConfig } from 'fire-code';
+import type { FireCodeConfig } from '@phmotad/fire-code';
 
 const config: FireCodeConfig = {
   project: {
@@ -25,6 +25,7 @@ const config: FireCodeConfig = {
   vectorStore: {
     // 'memory' = in-process, 'qdrant' = external Qdrant server
     provider: 'memory',
+    collection: 'fire-code',
   },
 
   graphStore: {
