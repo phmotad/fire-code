@@ -1,6 +1,6 @@
 {
   "name": "fire-code",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "description": "Intelligent MCP execution engine for AI coding agents — persistent memory, context-aware, Git-traceable",
   "author": {
     "name": "FireCode Contributors",

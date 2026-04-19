@@ -10,6 +10,7 @@ import { installCommand, uninstallCommand } from './commands/install.js';
 import { observeCommand, contextCommand, sessionCommand } from './commands/observe.js';
 import { daemonStartCommand, daemonStopCommand, daemonStatusCommand, daemonRunCommand } from './commands/daemon.js';
 import { corpusBuildCommand, corpusQueryCommand, corpusPrimeCommand } from './commands/corpus.js';
+import { configGetCommand, configSetCommand, configUnsetCommand, configListCommand } from './commands/config-cmd.js';
 
 const program = new Command();
 
@@ -156,6 +157,46 @@ corpus
     }
     const tags = opts.tags ? opts.tags.split(',').map(t => t.trim()) : [];
     await corpusPrimeCommand({ cwd: opts.cwd, title: opts.title, content: opts.content, tags, private: opts.private });
+  });
+
+// ── Config ─────────────────────────────────────────────────────────────────
+
+const config = program.command('config').description('Read and write Fire Code configuration');
+
+config
+  .command('list')
+  .description('List configuration (global + project)')
+  .option('--global', 'Show only global config (~/.firecode/config.json)')
+  .option('--cwd <path>', 'Working directory', process.cwd())
+  .action((opts: { global?: boolean; cwd: string }) => {
+    configListCommand({ global: opts.global, cwd: opts.cwd });
+  });
+
+config
+  .command('get <key>')
+  .description('Get a config value by dot-path (e.g. llm.provider)')
+  .option('--global', 'Read from global config')
+  .option('--cwd <path>', 'Working directory', process.cwd())
+  .action((key: string, opts: { global?: boolean; cwd: string }) => {
+    configGetCommand(key, { global: opts.global, cwd: opts.cwd });
+  });
+
+config
+  .command('set <key> <value>')
+  .description('Set a config value (e.g. fire-code config set llm.provider anthropic)')
+  .option('--global', 'Write to global config (~/.firecode/config.json)')
+  .option('--cwd <path>', 'Working directory', process.cwd())
+  .action((key: string, value: string, opts: { global?: boolean; cwd: string }) => {
+    configSetCommand(key, value, { global: opts.global, cwd: opts.cwd });
+  });
+
+config
+  .command('unset <key>')
+  .description('Remove a config key')
+  .option('--global', 'Remove from global config')
+  .option('--cwd <path>', 'Working directory', process.cwd())
+  .action((key: string, opts: { global?: boolean; cwd: string }) => {
+    configUnsetCommand(key, { global: opts.global, cwd: opts.cwd });
   });
 
 // ── Update ─────────────────────────────────────────────────────────────────

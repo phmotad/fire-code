@@ -154,6 +154,19 @@ function installGeneric(): string[] {
   ];
 }
 
+// ── Global config bootstrap ──────────────────────────────────────────────────
+
+function ensureGlobalConfig(): void {
+  const configPath = join(homedir(), '.firecode', 'config.json');
+  if (existsSync(configPath)) return;
+  const dir = join(homedir(), '.firecode');
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  const defaults = {
+    llm: { provider: 'openrouter' },
+  };
+  writeFileSync(configPath, JSON.stringify(defaults, null, 2) + '\n', 'utf8');
+}
+
 // ── agents.md ────────────────────────────────────────────────────────────────
 
 function writeAgentsMd(cwd: string): void {
@@ -222,6 +235,8 @@ export async function installCommand(opts: InstallOptions = {}): Promise<void> {
     console.error(chalk.gray(`  Supported: ${SUPPORTED_IDES.join(', ')}`));
     process.exit(1);
   }
+
+  ensureGlobalConfig();
 
   const spinner = ora({ text: `Installing for ${chalk.bold(ide)}...`, color: 'red' }).start();
 

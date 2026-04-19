@@ -8,12 +8,10 @@ const PLUGIN_ROOT = resolve(__dirname, '..', '..', '..');
 
 function writeAgentsMd(cwd: string): void {
   const dest = join(cwd, 'agents.md');
-  if (existsSync(dest)) return; // never overwrite user edits
+  if (existsSync(dest)) return;
   try {
     const src = join(PLUGIN_ROOT, 'plugin', 'agents.md');
-    const content = existsSync(src)
-      ? readFileSync(src, 'utf8')
-      : generateAgentMd();
+    const content = existsSync(src) ? readFileSync(src, 'utf8') : generateAgentMd();
     writeFileSync(dest, content, 'utf8');
   } catch { /* best-effort */ }
 }
@@ -77,7 +75,7 @@ export async function initCommand(cwd: string = process.cwd()): Promise<void> {
       type: 'input',
       name: 'projectName',
       message: 'Project name:',
-      default: cwd.split('/').pop() ?? 'my-project',
+      default: cwd.split('/').pop() ?? cwd.split('\\').pop() ?? 'my-project',
     },
     {
       type: 'list',
@@ -105,7 +103,7 @@ export async function initCommand(cwd: string = process.cwd()): Promise<void> {
     {
       type: 'password',
       name: 'apiKey',
-      message: 'API Key (leave blank if using env var):',
+      message: 'API Key (leave blank to use env var):',
       when: (ans: Partial<InitAnswers>) => ans.llmProvider !== 'ollama',
     },
     {
@@ -151,79 +149,39 @@ export async function initCommand(cwd: string = process.cwd()): Promise<void> {
     },
   ]);
 
-  const apiKeyLine = answers.apiKey
-    ? `\n    apiKey: process.env.${answers.llmProvider.toUpperCase()}_API_KEY ?? ${JSON.stringify(answers.apiKey)},`
-    : `\n    apiKey: process.env.${answers.llmProvider.toUpperCase()}_API_KEY,`;
+  const firecodeDir = ensureFireCodeDir(cwd);
 
-  const config = `import type { FireCodeConfig } from 'fire-code';
+  const config: Record<string, unknown> = {
+    project: {
+      name: answers.projectName,
+      mode: answers.mode,
+    },
+    llm: {
+      provider: answers.llmProvider,
+      model: answers.model,
+      ...(answers.apiKey ? { apiKey: answers.apiKey } : {}),
+    },
+    git: {
+      enabled: answers.gitEnabled,
+      autoBranch: answers.gitEnabled,
+      branchStrategy: answers.branchStrategy ?? 'reuse',
+      autoCommit: answers.gitEnabled,
+      workingTree: answers.workingTree ?? 'stash',
+    },
+    indexing: {
+      mode: answers.indexingMode,
+    },
+  };
 
-const config: FireCodeConfig = {
-  project: {
-    name: ${JSON.stringify(answers.projectName)},
-    mode: ${JSON.stringify(answers.mode)},
-  },
-
-  llm: {
-    provider: ${JSON.stringify(answers.llmProvider)},
-    model: ${JSON.stringify(answers.model)},${apiKeyLine}
-  },
-
-  embeddings: {
-    provider: 'local',
-  },
-
-  vectorStore: {
-    provider: 'memory',
-  },
-
-  graphStore: {
-    provider: 'memory',
-  },
-
-  memory: {
-    strategy: 'auto',
-  },
-
-  git: {
-    enabled: ${answers.gitEnabled},
-    autoBranch: ${answers.gitEnabled},
-    branchPrefix: 'firecode/',
-    branchStrategy: ${JSON.stringify(answers.branchStrategy ?? 'reuse')},
-    autoCommit: ${answers.gitEnabled},
-    commitFormat: 'conventional',
-    includeMetadata: true,
-    workingTree: ${JSON.stringify(answers.workingTree ?? 'stash')},
-    enforcePattern: false,
-  },
-
-  execution: {
-    mode: 'safe',
-    dryRun: false,
-    conflictStrategy: 'fail',
-    validateSyntax: true,
-  },
-
-  indexing: {
-    mode: ${JSON.stringify(answers.indexingMode)},
-    include: ['**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx'],
-    exclude: ['node_modules/**', 'dist/**', '.firecode/**'],
-  },
-};
-
-export default config;
-`;
-
-  const configPath = join(cwd, 'firecode.config.ts');
-  writeFileSync(configPath, config);
-  ensureFireCodeDir(cwd);
+  const configPath = join(firecodeDir, 'config.json');
+  writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n', 'utf8');
   writeAgentsMd(cwd);
 
-  console.log('\n' + chalk.green('✓ Created firecode.config.ts'));
-  console.log(chalk.green('✓ Created .firecode/'));
-  console.log(chalk.green('✓ Created agents.md') + chalk.gray(' — agent autonomous trigger rules'));
+  console.log('\n' + chalk.green('✓') + ' .firecode/config.json created');
+  console.log(chalk.green('✓') + ' agents.md created' + chalk.gray(' — agent trigger rules'));
   console.log('\n' + chalk.bold('Next steps:'));
   console.log(chalk.gray('  1. ') + chalk.white('fire-code index') + chalk.gray('   — index your project'));
   console.log(chalk.gray('  2. ') + chalk.white('fire-code dev') + chalk.gray('     — start MCP server'));
-  console.log(chalk.gray('  3. ') + chalk.white('Add to claude_desktop_config.json as MCP server'));
+  console.log(chalk.gray('  3. ') + chalk.white('fire-code config set llm.apiKey <key>') + chalk.gray('   — set API key'));
   console.log();
 }

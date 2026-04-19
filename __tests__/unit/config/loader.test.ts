@@ -23,7 +23,29 @@ describe('loadConfig', () => {
     expect(config.execution.mode).toBe('safe');
   });
 
-  it('loads and merges JSON config', async () => {
+  it('loads .firecode/config.json (canonical location)', async () => {
+    const firecodeDir = join(tmpDir, '.firecode');
+    mkdirSync(firecodeDir, { recursive: true });
+    writeFileSync(
+      join(firecodeDir, 'config.json'),
+      JSON.stringify({ project: { name: 'canonical-app' }, git: { autoBranch: false } }),
+    );
+    const config = await loadConfig(tmpDir);
+    expect(config.project.name).toBe('canonical-app');
+    expect(config.git.autoBranch).toBe(false);
+    expect(config.git.branchStrategy).toBe('reuse'); // default preserved
+  });
+
+  it('.firecode/config.json takes priority over root firecode.config.json', async () => {
+    const firecodeDir = join(tmpDir, '.firecode');
+    mkdirSync(firecodeDir, { recursive: true });
+    writeFileSync(join(firecodeDir, 'config.json'), JSON.stringify({ project: { name: 'inner' } }));
+    writeFileSync(join(tmpDir, 'firecode.config.json'), JSON.stringify({ project: { name: 'outer' } }));
+    const config = await loadConfig(tmpDir);
+    expect(config.project.name).toBe('inner');
+  });
+
+  it('loads root firecode.config.json as fallback', async () => {
     writeFileSync(
       join(tmpDir, 'firecode.config.json'),
       JSON.stringify({ project: { name: 'my-app' }, git: { autoBranch: false } }),

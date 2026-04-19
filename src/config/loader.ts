@@ -1,31 +1,23 @@
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
-import { createRequire } from 'module';
 import { FireCodeConfigSchema, type FireCodeConfig } from './types.js';
 import { ConfigError } from '../utils/errors.js';
 
-const CONFIG_FILES = [
-  'firecode.config.ts',
-  'firecode.config.js',
-  'firecode.config.json',
-  '.firecoderc.json',
-  '.firecoderc',
+// Priority order for project-level config (relative to cwd)
+const PROJECT_CONFIG_PATHS = [
+  join('.firecode', 'config.json'), // canonical location
+  'firecode.config.json',           // legacy root-level
+  '.firecoderc.json',               // legacy
+  '.firecoderc',                    // legacy
 ];
 
-async function loadTsOrJs(filePath: string): Promise<Partial<FireCodeConfig>> {
-  try {
-    const req = createRequire(filePath);
-    // For .ts files compiled to .js during build, or .js directly
-    const mod = req(filePath) as { default?: Partial<FireCodeConfig> } | Partial<FireCodeConfig>;
-    if (mod && typeof mod === 'object' && 'default' in mod && mod.default) {
-      return mod.default;
-    }
-    return mod as Partial<FireCodeConfig>;
-  } catch {
-    throw new ConfigError(`Failed to load config from ${filePath}`);
-  }
-}
+// Names looked up inside ~/.firecode/
+const GLOBAL_CONFIG_NAMES = [
+  'config.json',          // canonical: ~/.firecode/config.json
+  'firecode.config.json', // legacy
+  '.firecoderc.json',     // legacy
+];
 
 function loadJson(filePath: string): Partial<FireCodeConfig> {
   try {
@@ -37,27 +29,20 @@ function loadJson(filePath: string): Partial<FireCodeConfig> {
 }
 
 async function findAndLoadConfig(cwd: string): Promise<Partial<FireCodeConfig>> {
-  for (const fileName of CONFIG_FILES) {
-    const filePath = join(cwd, fileName);
+  for (const relPath of PROJECT_CONFIG_PATHS) {
+    const filePath = join(cwd, relPath);
     if (!existsSync(filePath)) continue;
-
-    if (fileName.endsWith('.json') || fileName === '.firecoderc') {
-      return loadJson(filePath);
-    }
-    return loadTsOrJs(filePath);
+    return loadJson(filePath);
   }
   return {};
 }
 
 async function loadGlobalConfig(): Promise<Partial<FireCodeConfig>> {
   const globalDir = join(homedir(), '.firecode');
-  for (const fileName of CONFIG_FILES) {
-    const filePath = join(globalDir, fileName);
+  for (const name of GLOBAL_CONFIG_NAMES) {
+    const filePath = join(globalDir, name);
     if (!existsSync(filePath)) continue;
-    if (fileName.endsWith('.json') || fileName === '.firecoderc') {
-      return loadJson(filePath);
-    }
-    return loadTsOrJs(filePath);
+    return loadJson(filePath);
   }
   return {};
 }

@@ -1,67 +1,105 @@
 ---
 title: Configuration
-description: All configuration options for firecode.config.ts.
+description: Configure Fire Code via CLI commands or JSON files — no manual file creation needed.
 ---
 
-Create `firecode.config.ts` in your project root to customize Fire Code. Run `fire-code init` for an interactive setup wizard.
+<Info>
+You never need to create a config file by hand. Run `fire-code install` to bootstrap global config automatically, or `fire-code init` for the interactive project wizard.
+</Info>
+
+## Config Locations
+
+Fire Code stores configuration in JSON files, merged in this priority order:
+
+| Location | Scope | Created by |
+|----------|-------|-----------|
+| `.firecode/config.json` | Project (highest priority) | `fire-code init` or `fire-code config set` |
+| `~/.firecode/config.json` | Global (fallback) | `fire-code install` |
+| Built-in defaults | Always applied | — |
+
+Project config overrides global config on a per-key basis.
+
+## CLI Commands
+
+All configuration is editable through `fire-code config`:
+
+```bash
+# Show all config (global + project)
+fire-code config list
+
+# Show global config only
+fire-code config list --global
+
+# Get a specific value
+fire-code config get llm.provider
+
+# Set in project config (.firecode/config.json)
+fire-code config set llm.provider anthropic
+fire-code config set llm.model claude-sonnet-4-6
+fire-code config set llm.apiKey sk-...
+
+# Set in global config (~/.firecode/config.json)
+fire-code config set --global llm.provider openrouter
+fire-code config set --global llm.apiKey sk-...
+
+# Remove a key
+fire-code config unset llm.apiKey
+fire-code config unset --global llm.apiKey
+```
+
+Dot notation navigates nested keys: `git.branchStrategy`, `indexing.mode`, `llm.provider`.
 
 ## Full Config Reference
 
-```typescript
-import type { FireCodeConfig } from '@phmotad/fire-code';
+The config file is plain JSON:
 
-export default {
-  project: {
-    name: 'my-project',       // used for DB namespacing
-    mode: 'standard',         // 'standard' | 'legacy'
+```json
+{
+  "project": {
+    "name": "my-project",
+    "mode": "standard"
   },
-
-  llm: {
-    provider: 'anthropic',    // 'anthropic' | 'openai' | 'openrouter' | 'ollama'
-    model: 'claude-sonnet-4-6',
-    apiKey: process.env.ANTHROPIC_API_KEY,
-    maxTokens: 4096,
-    temperature: 0.2,
+  "llm": {
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-6",
+    "apiKey": "sk-...",
+    "maxTokens": 4096,
+    "temperature": 0.2
   },
-
-  embeddings: {
-    provider: 'local',        // 'local' only (runs offline via @xenova/transformers)
-    model: 'Xenova/all-MiniLM-L6-v2',
+  "git": {
+    "enabled": true,
+    "branchStrategy": "reuse",
+    "workingTree": "stash",
+    "autoCommit": true,
+    "commitFormat": "conventional"
   },
-
-  git: {
-    branchStrategy: 'increment',  // 'reuse' | 'increment' | 'fail'
-    workingTree: 'stash',         // 'stash' | 'commit' | 'fail' | 'ignore'
-    autoCommit: true,
-    commitFormat: 'conventional', // conventional commit format
+  "indexing": {
+    "mode": "lazy",
+    "include": ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx"],
+    "exclude": ["node_modules/**", "dist/**", ".firecode/**"]
   },
-
-  indexing: {
-    mode: 'lazy',             // 'lazy' | 'full'
-    include: ['**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx'],
-    exclude: ['node_modules', 'dist', 'build', '.git', 'coverage'],
-  },
-
-  execution: {
-    conflictStrategy: 'merge',    // 'merge' | 'overwrite' | 'fail'
-    dryRun: false,
-    validateSyntax: true,
-  },
-} satisfies FireCodeConfig;
+  "execution": {
+    "conflictStrategy": "merge",
+    "dryRun": false,
+    "validateSyntax": true
+  }
+}
 ```
 
 ## LLM Providers
 
-| Provider | `provider` value | Required env var | Default model |
-|----------|-----------------|-----------------|---------------|
-| Anthropic | `anthropic` | `ANTHROPIC_API_KEY` | `claude-sonnet-4-6` |
-| OpenAI | `openai` | `OPENAI_API_KEY` | `gpt-4o` |
-| OpenRouter | `openrouter` | `OPENROUTER_API_KEY` | `deepseek/deepseek-coder` |
-| Ollama | `ollama` | _(none)_ | `codellama` |
+| Provider | `provider` value | Default model | API key env var |
+|----------|-----------------|--------------|----------------|
+| Anthropic | `anthropic` | `claude-sonnet-4-6` | `ANTHROPIC_API_KEY` |
+| OpenAI | `openai` | `gpt-4o` | `OPENAI_API_KEY` |
+| OpenRouter | `openrouter` | `deepseek/deepseek-coder` | `OPENROUTER_API_KEY` |
+| Ollama | `ollama` | `codellama` | _(none)_ |
+
+If `apiKey` is not set in config, the provider reads the corresponding environment variable automatically.
 
 ## Git Strategies
 
-### Branch Strategy (`git.branchStrategy`)
+### `git.branchStrategy`
 
 | Value | Behavior |
 |-------|----------|
@@ -69,7 +107,7 @@ export default {
 | `increment` | Add `-2`, `-3`... suffix if branch exists |
 | `fail` | Throw `GitError` if branch exists |
 
-### Working Tree Strategy (`git.workingTree`)
+### `git.workingTree`
 
 | Value | Behavior |
 |-------|----------|
@@ -78,23 +116,10 @@ export default {
 | `fail` | Block execution if there are uncommitted changes |
 | `ignore` | Proceed regardless of dirty state |
 
-## Config Loading Order
-
-Fire Code looks for config in this order:
-
-1. `./firecode.config.ts`
-2. `./firecode.config.json`
-3. `~/.firecode/config.ts`
-4. Built-in defaults
-
 ## Project Mode
 
 ### `standard` (default)
-For greenfield projects or well-organized codebases. Uses strict graph traversal and full embedding generation.
+Greenfield projects or well-organized codebases. Strict graph traversal and full embedding generation.
 
 ### `legacy`
-For large, messy, or partially-typed codebases. Uses fallback text search when graph/vector retrieval fails. Recommended if you have files without TypeScript types or non-standard module patterns.
-
-<Tip>
-  Run `fire-code init` for an interactive wizard that creates `firecode.config.ts` with the right settings for your project.
-</Tip>
+Large or partially-typed codebases. Falls back to text search when graph/vector retrieval fails. Recommended if you have files without TypeScript types or non-standard module patterns.

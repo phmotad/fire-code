@@ -1,67 +1,105 @@
 ---
 title: Configuração
-description: Todas as opções de configuração do firecode.config.ts.
+description: Configure o Fire Code via comandos no terminal ou arquivos JSON — sem criar arquivos manualmente.
 ---
 
-Crie `firecode.config.ts` na raiz do projeto para personalizar o Fire Code. Execute `fire-code init` para o assistente de configuração interativo.
+<Info>
+Você não precisa criar nenhum arquivo de configuração manualmente. Execute `fire-code install` para criar a configuração global automaticamente, ou `fire-code init` para o assistente interativo do projeto.
+</Info>
 
-## Referência Completa de Configuração
+## Onde fica a configuração
 
-```typescript
-import type { FireCodeConfig } from '@phmotad/fire-code';
+O Fire Code armazena configuração em arquivos JSON, mesclados nesta ordem de prioridade:
 
-export default {
-  project: {
-    name: 'meu-projeto',        // usado para namespace do banco de dados
-    mode: 'standard',           // 'standard' | 'legacy'
-  },
+| Local | Escopo | Criado por |
+|-------|--------|-----------|
+| `.firecode/config.json` | Projeto (maior prioridade) | `fire-code init` ou `fire-code config set` |
+| `~/.firecode/config.json` | Global (fallback) | `fire-code install` |
+| Padrões internos | Sempre aplicados | — |
 
-  llm: {
-    provider: 'anthropic',      // 'anthropic' | 'openai' | 'openrouter' | 'ollama'
-    model: 'claude-sonnet-4-6',
-    apiKey: process.env.ANTHROPIC_API_KEY,
-    maxTokens: 4096,
-    temperature: 0.2,
-  },
+A configuração do projeto substitui a global chave a chave.
 
-  embeddings: {
-    provider: 'local',          // 'local' apenas (roda offline via @xenova/transformers)
-    model: 'Xenova/all-MiniLM-L6-v2',
-  },
+## Comandos
 
-  git: {
-    branchStrategy: 'increment',  // 'reuse' | 'increment' | 'fail'
-    workingTree: 'stash',         // 'stash' | 'commit' | 'fail' | 'ignore'
-    autoCommit: true,
-    commitFormat: 'conventional', // formato de commit convencional
-  },
+Toda a configuração é editável via `fire-code config`:
 
-  indexing: {
-    mode: 'lazy',               // 'lazy' | 'full'
-    include: ['**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx'],
-    exclude: ['node_modules', 'dist', 'build', '.git', 'coverage'],
-  },
+```bash
+# Ver toda a configuração (global + projeto)
+fire-code config list
 
-  execution: {
-    conflictStrategy: 'merge',    // 'merge' | 'overwrite' | 'fail'
-    dryRun: false,
-    validateSyntax: true,
-  },
-} satisfies FireCodeConfig;
+# Ver só a configuração global
+fire-code config list --global
+
+# Ler um valor específico
+fire-code config get llm.provider
+
+# Definir no projeto (.firecode/config.json)
+fire-code config set llm.provider anthropic
+fire-code config set llm.model claude-sonnet-4-6
+fire-code config set llm.apiKey sk-...
+
+# Definir globalmente (~/.firecode/config.json)
+fire-code config set --global llm.provider openrouter
+fire-code config set --global llm.apiKey sk-...
+
+# Remover uma chave
+fire-code config unset llm.apiKey
+fire-code config unset --global llm.apiKey
 ```
 
-## Provedores LLM
+Notação com ponto navega chaves aninhadas: `git.branchStrategy`, `indexing.mode`, `llm.provider`.
 
-| Provedor | Valor `provider` | Variável de Ambiente | Modelo Padrão |
-|---------|-----------------|---------------------|---------------|
-| Anthropic | `anthropic` | `ANTHROPIC_API_KEY` | `claude-sonnet-4-6` |
-| OpenAI | `openai` | `OPENAI_API_KEY` | `gpt-4o` |
-| OpenRouter | `openrouter` | `OPENROUTER_API_KEY` | `deepseek/deepseek-coder` |
-| Ollama | `ollama` | _(nenhuma)_ | `codellama` |
+## Referência Completa
+
+O arquivo de config é JSON simples:
+
+```json
+{
+  "project": {
+    "name": "meu-projeto",
+    "mode": "standard"
+  },
+  "llm": {
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-6",
+    "apiKey": "sk-...",
+    "maxTokens": 4096,
+    "temperature": 0.2
+  },
+  "git": {
+    "enabled": true,
+    "branchStrategy": "reuse",
+    "workingTree": "stash",
+    "autoCommit": true,
+    "commitFormat": "conventional"
+  },
+  "indexing": {
+    "mode": "lazy",
+    "include": ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx"],
+    "exclude": ["node_modules/**", "dist/**", ".firecode/**"]
+  },
+  "execution": {
+    "conflictStrategy": "merge",
+    "dryRun": false,
+    "validateSyntax": true
+  }
+}
+```
+
+## Providers de LLM
+
+| Provider | Valor `provider` | Modelo padrão | Variável de ambiente |
+|----------|-----------------|--------------|---------------------|
+| Anthropic | `anthropic` | `claude-sonnet-4-6` | `ANTHROPIC_API_KEY` |
+| OpenAI | `openai` | `gpt-4o` | `OPENAI_API_KEY` |
+| OpenRouter | `openrouter` | `deepseek/deepseek-coder` | `OPENROUTER_API_KEY` |
+| Ollama | `ollama` | `codellama` | _(nenhuma)_ |
+
+Se `apiKey` não estiver no config, o provider lê a variável de ambiente correspondente automaticamente.
 
 ## Estratégias Git
 
-### Estratégia de Branch (`git.branchStrategy`)
+### `git.branchStrategy`
 
 | Valor | Comportamento |
 |-------|--------------|
@@ -69,32 +107,19 @@ export default {
 | `increment` | Adiciona sufixo `-2`, `-3`... se o branch existir |
 | `fail` | Lança `GitError` se o branch existir |
 
-### Estratégia de Working Tree (`git.workingTree`)
+### `git.workingTree`
 
 | Valor | Comportamento |
 |-------|--------------|
 | `stash` | Executa `git stash` automaticamente antes da execução |
-| `commit` | Auto-commita arquivos sujos com mensagem "WIP" |
-| `fail` | Bloqueia execução se houver mudanças não commitadas |
-| `ignore` | Prossegue independentemente do estado sujo |
-
-## Ordem de Carregamento da Configuração
-
-O Fire Code procura configuração nesta ordem:
-
-1. `./firecode.config.ts`
-2. `./firecode.config.json`
-3. `~/.firecode/config.ts`
-4. Defaults embutidos
+| `commit` | Auto-commita arquivos modificados com mensagem "WIP" |
+| `fail` | Bloqueia se houver mudanças não commitadas |
+| `ignore` | Prossegue independente do estado do working tree |
 
 ## Modo do Projeto
 
 ### `standard` (padrão)
-Para projetos novos ou codebases bem organizadas. Usa traversal de grafo estrito e geração completa de embeddings.
+Projetos novos ou bem organizados. Usa traversal de grafo estrito e geração completa de embeddings.
 
 ### `legacy`
-Para codebases grandes, desorganizadas ou parcialmente tipadas. Usa busca textual como fallback quando recuperação por grafo/vetor falha. Recomendado se você tem arquivos sem tipos TypeScript ou padrões de módulo não-padrão.
-
-<Tip>
-  Execute `fire-code init` para o assistente interativo que cria `firecode.config.ts` com as configurações certas para o seu projeto.
-</Tip>
+Projetos grandes ou parcialmente tipados. Usa busca textual como fallback quando o grafo/vetor falha. Recomendado para projetos sem tipos TypeScript ou com padrões de módulo não convencionais.
