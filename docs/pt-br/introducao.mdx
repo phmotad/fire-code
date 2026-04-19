@@ -48,12 +48,15 @@ O Fire Code dá ao seu agente um **cérebro persistente**:
 | IDE | Ferramentas MCP | Hooks | Instalação |
 |-----|-----------------|-------|-----------|
 | **Claude Code** | ✓ | ✓ | `fire-code install` |
-| **Cursor** | ✓ | ✓ | `fire-code install --ide cursor` |
-| **Windsurf** | ✓ | ✓ | `fire-code install --ide windsurf` |
-| **OpenCode** | ✓ | ✓ | `fire-code install --ide opencode` |
+| **Cursor** | ✓ | — | `fire-code install --ide cursor` |
+| **Windsurf** | ✓ | — | `fire-code install --ide windsurf` |
+| **OpenCode** | ✓ | — | `fire-code install --ide opencode` |
 | **Codex CLI** | ✓ | — | `fire-code install --ide codex` |
 | **Gemini CLI** | ✓ | — | `fire-code install --ide gemini` |
 | **Goose** | ✓ | — | `fire-code install --ide goose` |
+| **Qualquer IDE MCP** | ✓ | — | `fire-code install --ide generic` |
+
+> Hooks (SessionStart, PostToolUse) estão disponíveis apenas no Claude Code. Os demais IDEs recebem somente as ferramentas MCP.
 
 ## Como Funciona
 
