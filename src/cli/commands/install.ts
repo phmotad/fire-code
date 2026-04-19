@@ -28,6 +28,23 @@ const SUPPORTED_IDES: IdeTarget[] = [
   'generic',
 ];
 
+// Short aliases accepted via --ide flag
+const IDE_ALIASES: Record<string, IdeTarget> = {
+  claude: 'claude-code',
+  'claude-code': 'claude-code',
+  cursor: 'cursor',
+  windsurf: 'windsurf',
+  opencode: 'opencode',
+  codex: 'codex',
+  gemini: 'gemini',
+  goose: 'goose',
+  generic: 'generic',
+};
+
+function resolveIde(input: string): IdeTarget | undefined {
+  return IDE_ALIASES[input.toLowerCase()];
+}
+
 interface InstallOptions {
   ide?: string;
   cwd?: string;
@@ -217,23 +234,20 @@ function detectIde(): IdeTarget {
 export async function installCommand(opts: InstallOptions = {}): Promise<void> {
   console.log(chalk.red('\n  🔥 Fire Code') + chalk.gray(' — install\n'));
 
-  let ide = opts.ide as IdeTarget | undefined;
+  let ide: IdeTarget | undefined;
 
-  if (!ide || ide === 'claude-code') {
-    // Default: try auto-detect, fall back to claude-code
-    const detected = detectIde();
+  if (opts.ide) {
+    ide = resolveIde(opts.ide);
     if (!ide) {
-      ide = detected;
-      if (ide !== 'claude-code') {
-        console.log(chalk.gray(`  Auto-detected IDE: ${chalk.bold(ide)}\n`));
-      }
+      console.error(chalk.red(`  Unknown IDE: ${opts.ide}`));
+      console.error(chalk.gray(`  Supported: claude, cursor, windsurf, opencode, codex, gemini, goose, generic`));
+      process.exit(1);
     }
-  }
-
-  if (!SUPPORTED_IDES.includes(ide as IdeTarget)) {
-    console.error(chalk.red(`  Unknown IDE: ${ide}`));
-    console.error(chalk.gray(`  Supported: ${SUPPORTED_IDES.join(', ')}`));
-    process.exit(1);
+  } else {
+    ide = detectIde();
+    const label = ide === 'claude-code' ? 'claude' : ide;
+    console.log(chalk.gray(`  Auto-detected: ${chalk.bold(label)}`) +
+      chalk.gray('  (override with --ide <name>)\n'));
   }
 
   ensureGlobalConfig();

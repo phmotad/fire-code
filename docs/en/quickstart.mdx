@@ -18,9 +18,15 @@ npm install -g @phmotad/fire-code
 ## 2. Install the Plugin
 
 <Tabs>
-  <Tab title="Claude Code">
+  <Tab title="Auto-detect">
     ```bash
     fire-code install
+    ```
+    Detects your IDE automatically and installs accordingly.
+  </Tab>
+  <Tab title="Claude Code">
+    ```bash
+    fire-code install --ide claude
     ```
     Registers the MCP server, lifecycle hooks, and writes `agents.md` to your project root.
   </Tab>
@@ -43,7 +49,6 @@ npm install -g @phmotad/fire-code
     ```bash
     fire-code install --ide generic
     ```
-    Auto-detects your IDE if no flag is passed.
   </Tab>
 </Tabs>
 
