@@ -1,25 +1,29 @@
 ---
 title: MCP Tools
-description: All 8 MCP tools available to your AI agent, with usage examples.
+description: All 8 MCP tools the agent uses automatically, with parameters and examples.
 ---
 
-Fire Code exposes 8 MCP tools in 3 tiers. Always follow the tier order — it keeps token usage minimal.
+<Info>
+These tools are invoked **by the agent** (Claude, Cursor, Goose, etc.) — not by you. The `agents.md` file in your project root contains the trigger rules that drive automatic invocation. You never need to ask the agent to use a tool manually.
+</Info>
+
+Fire Code exposes 8 MCP tools in 3 tiers. The agent follows this tier order to keep token usage minimal.
 
 ## Tool Hierarchy
 
 ```
-Tier 1 — Fast (use first)
+Tier 1 — Fast (used first)
   firecode.smart_search    → find files/symbols (~50 tokens/result)
   firecode.smart_outline   → see all symbols in a file (~20 tokens/symbol)
 
-Tier 2 — Memory (use when you need context)
+Tier 2 — Memory (used when context is needed)
   firecode.get_context     → hybrid vector + graph retrieval
   firecode.search_code     → semantic similarity over embeddings
   firecode.get_graph       → dependency relationships
   firecode.corpus_search   → architecture docs and decisions
   firecode.observations    → session history
 
-Tier 3 — Execute (use last)
+Tier 3 — Execute (used last)
   firecode.execute         → make changes with Git traceability
 ```
 
@@ -29,7 +33,7 @@ Tier 3 — Execute (use last)
 
 ### `firecode.smart_search`
 
-Search symbols, file names, and content across your indexed codebase. Fast, no embeddings needed.
+Searches symbols, file names, and content across the indexed codebase. Fast, no embeddings needed.
 
 **Parameters:**
 | Name | Type | Description |
@@ -48,7 +52,7 @@ smart_search({ query: "validateEmail", path: "src" })
 
 ### `firecode.smart_outline`
 
-Get the structural outline of a file — all functions, classes, interfaces, and types — without reading the full content.
+Gets the structural outline of a file — all functions, classes, interfaces, and types — without reading the full content.
 
 **Parameters:**
 | Name | Type | Description |
@@ -100,7 +104,7 @@ Pure semantic similarity search over your indexed embeddings. Good for finding c
 
 ### `firecode.get_graph`
 
-Query the dependency graph. Supports node filtering, BFS traversal, and reverse dependency lookup.
+Queries the dependency graph. Supports node filtering, BFS traversal, and reverse dependency lookup.
 
 **Parameters:**
 | Name | Type | Description |
@@ -165,26 +169,36 @@ Full task execution: creates a Git branch, retrieves context, runs CodeAgent (LL
 | Name | Type | Description |
 |------|------|-------------|
 | `task` | string | Natural language description of the task |
+| `agent` | string? | `dev`, `supervisor`, or `review` — sets branch prefix |
 | `type` | string? | `feature`, `fix`, `refactor`, `docs` (auto-detected if omitted) |
 | `dryRun` | boolean? | Return diff without applying changes |
 | `branch` | string? | Override auto-generated branch name |
 
+**Agent roles and branches:**
+| Role | Branch pattern | Use when |
+|------|---------------|----------|
+| `dev` | `firecode/dev/feat/slug` | Implementing, fixing, refactoring |
+| `supervisor` | `firecode/supervisor/feat/slug` | Planning, designing, coordinating |
+| `review` | `firecode/review/chore/slug` | Auditing, reviewing, inspecting |
+
 **Example:**
 ```typescript
-execute({ task: "add forgot password feature", type: "feature" })
-// → Creates branch: firecode/feat/forgot-password
+execute({ task: "add forgot password feature", agent: "dev" })
+// → Creates branch: firecode/dev/feat/forgot-password
 // → Retrieves context from HybridMemory
 // → Runs CodeAgent with LLM
 // → Applies FileChange[] to disk
 // → Commits: feat(auth): add forgot password feature
 ```
 
-## Recommended Workflow
+## Automatic Trigger Order
+
+The agent follows this order on its own — no prompting needed:
 
 ```
 1. smart_search(query)        → find existing implementations
 2. smart_outline(file_path)   → understand file structure
 3. corpus_search(query)       → check architecture constraints
 4. get_context(query)         → get semantic + graph context
-5. execute(task)              → make the change
+5. execute(task, agent)       → make the change
 ```

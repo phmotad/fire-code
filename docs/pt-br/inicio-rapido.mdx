@@ -6,7 +6,7 @@ description: Instale o Fire Code e comece a usá-lo em menos de 5 minutos.
 ## Pré-requisitos
 
 - Node.js 20+
-- Um IDE com suporte a MCP (Claude Code, Cursor, Windsurf, OpenCode…)
+- Claude Code, Cursor, Windsurf, OpenCode ou outro IDE com suporte a MCP
 - Um projeto para indexar
 
 ## 1. Instalar
@@ -22,7 +22,7 @@ npm install -g @phmotad/fire-code
     ```bash
     fire-code install
     ```
-    Registra o servidor MCP e os hooks de ciclo de vida no config do Claude Code.
+    Registra o servidor MCP, hooks de ciclo de vida e escreve `agents.md` na raiz do projeto.
   </Tab>
   <Tab title="Cursor">
     ```bash
@@ -43,11 +43,13 @@ npm install -g @phmotad/fire-code
     ```bash
     fire-code install --ide generic
     ```
-    Detecta automaticamente o IDE se nenhuma flag for passada.
+    Detecta o IDE automaticamente se nenhuma flag for passada.
   </Tab>
 </Tabs>
 
-## 3. Indexar seu Projeto
+O `fire-code install` também cria um arquivo `agents.md` na raiz do projeto. Esse arquivo contém as regras de disparo que dizem ao agente **quando invocar cada ferramenta MCP automaticamente** — sem nenhuma intervenção sua.
+
+## 3. Indexar o Projeto
 
 Navegue até o projeto e execute:
 
@@ -66,21 +68,23 @@ Se o projeto tem docs de arquitetura, ADRs ou READMEs:
 fire-code corpus build
 ```
 
-Indexa todos os arquivos `.md`, `.txt`, `.rst` e `.mdx` em um banco de busca full-text.
+Indexa todos os arquivos `.md`, `.txt`, `.rst` e `.mdx` em um banco de busca full-text, para que o agente consulte decisões arquiteturais antes de escrever código.
 
 ## 5. Reiniciar o IDE
 
-As ferramentas MCP agora estão disponíveis em toda sessão. O Claude injeta automaticamente o resumo do índice no início da sessão.
+O Fire Code está ativo. Na próxima sessão, o agente recebe o resumo do índice automaticamente e começa a usar as ferramentas MCP por conta própria.
 
-## Verificar que Está Funcionando
+## Como Saber que Está Funcionando
 
-No Claude Code, pergunte:
+Abra o projeto e inicie uma tarefa de codificação — **não peça ao agente para usar nenhuma ferramenta manualmente**. Observe o agente invocar as ferramentas Fire Code automaticamente antes de fazer qualquer alteração:
 
 ```
-Use firecode.smart_search para encontrar o ponto de entrada principal deste projeto.
+→ firecode.smart_search({ query: "..." })     ← busca antes de escrever
+→ firecode.corpus_search({ query: "..." })    ← verifica restrições arquiteturais
+→ firecode.execute({ task: "...", agent: "dev" })  ← cria branch e commita
 ```
 
-Você deve receber uma resposta com referências de arquivo e linha do seu codebase.
+O arquivo `agents.md` na raiz do projeto é o que dirige esse comportamento. Se o agente não estiver usando as ferramentas automaticamente, verifique se o `agents.md` existe e se o IDE foi reiniciado após a instalação.
 
 ## O que Acontece em Cada Sessão
 
@@ -88,7 +92,7 @@ Você deve receber uma resposta com referências de arquivo e linha do seu codeb
 Hook SessionStart dispara
   ├── Daemon inicia (porta 37778) se ainda não estiver rodando
   └── .firecode/bootstrap.log injetado no contexto
-        → Claude sabe: N arquivos indexados, M funções, última indexação em T
+        → Agente sabe: N arquivos indexados, M funções, última indexação em T
 
 Hook PostToolUse dispara (em Write/Edit)
   └── Arquivo alterado re-indexado automaticamente
@@ -98,7 +102,7 @@ Hook PostToolUse dispara (em Write/Edit)
 
 <CardGroup cols={2}>
   <Card title="Ferramentas MCP" icon="wrench" href="/pt-br/ferramentas-mcp">
-    Aprenda a usar todas as 8 ferramentas MCP de forma eficiente.
+    As 8 ferramentas que o agente usa, com parâmetros e exemplos.
   </Card>
   <Card title="Configuração" icon="gear" href="/pt-br/configuracao">
     Personalize o Fire Code para o seu projeto.

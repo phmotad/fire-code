@@ -1,0 +1,116 @@
+---
+title: Quick Start
+description: Install Fire Code and start using it in under 5 minutes.
+---
+
+## Prerequisites
+
+- Node.js 20+
+- Claude Code (or Cursor / Windsurf / OpenCode / ...)
+- A project to index
+
+## 1. Install
+
+```bash
+npm install -g @phmotad/fire-code
+```
+
+## 2. Install the Plugin
+
+<Tabs>
+  <Tab title="Claude Code">
+    ```bash
+    fire-code install
+    ```
+    Registers the MCP server, lifecycle hooks, and writes `agents.md` to your project root.
+  </Tab>
+  <Tab title="Cursor">
+    ```bash
+    fire-code install --ide cursor
+    ```
+  </Tab>
+  <Tab title="Windsurf">
+    ```bash
+    fire-code install --ide windsurf
+    ```
+  </Tab>
+  <Tab title="OpenCode">
+    ```bash
+    fire-code install --ide opencode
+    ```
+  </Tab>
+  <Tab title="Other">
+    ```bash
+    fire-code install --ide generic
+    ```
+    Auto-detects your IDE if no flag is passed.
+  </Tab>
+</Tabs>
+
+`fire-code install` also writes an `agents.md` file to your project root. This file contains trigger rules that tell the agent **when to invoke each MCP tool automatically** — no prompting needed.
+
+## 3. Index Your Project
+
+Navigate to your project and run:
+
+```bash
+cd your-project
+fire-code index
+```
+
+This scans your source files, builds the dependency graph, and generates semantic embeddings. Everything is stored in `.firecode/` — never committed to git.
+
+## 4. (Optional) Build the Knowledge Corpus
+
+If your project has architecture docs, ADRs, or READMEs:
+
+```bash
+fire-code corpus build
+```
+
+Indexes all `.md`, `.txt`, `.rst`, and `.mdx` files into a full-text search database, so the agent can query architectural decisions before writing code.
+
+## 5. Restart Your IDE
+
+Fire Code is now active. On the next session, the agent receives the index summary automatically and starts using the MCP tools on its own.
+
+## How to Know It's Working
+
+Open your project and start a coding task — **do not ask the agent to run any tool manually**. Watch the agent automatically call Fire Code tools before making changes:
+
+```
+→ firecode.smart_search({ query: "..." })     ← searches before writing
+→ firecode.corpus_search({ query: "..." })    ← checks architectural constraints
+→ firecode.execute({ task: "...", agent: "dev" })  ← creates branch, commits
+```
+
+The `agents.md` file in your project root drives this behavior. If you don't see automatic tool use, verify that `agents.md` exists and that you restarted the IDE after install.
+
+## What Happens on Each Session
+
+```
+SessionStart hook fires
+  ├── Daemon starts (port 37778) if not already running
+  └── .firecode/bootstrap.log injected into context
+        → Agent knows: N files indexed, M functions, last indexed at T
+
+PostToolUse hook fires (on Write/Edit)
+  └── Changed file re-indexed automatically
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="MCP Tools" icon="wrench" href="/en/mcp-tools">
+    All 8 tools the agent uses, with parameters and examples.
+  </Card>
+  <Card title="Configuration" icon="gear" href="/en/configuration">
+    Customize Fire Code for your project.
+  </Card>
+  <Card title="Knowledge Corpus" icon="book" href="/en/knowledge-corpus">
+    Feed architecture docs into agent context.
+  </Card>
+  <Card title="Privacy Tags" icon="lock" href="/en/privacy-tags">
+    Keep sensitive code out of the LLM.
+  </Card>
+</CardGroup>

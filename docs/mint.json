@@ -27,8 +27,8 @@
   },
   "tabs": [
     {
-      "name": "API Reference",
-      "url": "api-reference"
+      "name": "English",
+      "url": "en"
     },
     {
       "name": "Português",
@@ -56,32 +56,32 @@
     {
       "group": "Get Started",
       "pages": [
-        "introduction",
-        "quickstart",
-        "configuration"
+        "en/introduction",
+        "en/quickstart",
+        "en/configuration"
       ]
     },
     {
       "group": "Features",
       "pages": [
-        "mcp-tools",
-        "knowledge-corpus",
-        "privacy-tags",
-        "daemon"
+        "en/mcp-tools",
+        "en/knowledge-corpus",
+        "en/privacy-tags",
+        "en/daemon"
       ]
     },
     {
       "group": "Reference",
       "pages": [
-        "cli-reference"
+        "en/cli-reference"
       ]
     },
     {
       "group": "Architecture",
       "pages": [
-        "architecture/overview",
-        "architecture/memory-layer",
-        "architecture/graph-store"
+        "en/architecture/overview",
+        "en/architecture/memory-layer",
+        "en/architecture/graph-store"
       ]
     },
     {
@@ -107,6 +107,12 @@
         "pt-br/referencia-cli",
         "pt-br/arquitetura"
       ]
+    }
+  ],
+  "redirects": [
+    {
+      "source": "/",
+      "destination": "/en/introduction"
     }
   ],
   "footerSocials": {

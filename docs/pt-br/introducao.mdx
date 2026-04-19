@@ -5,14 +5,14 @@ description: O que é o Fire Code e por que ele existe?
 
 # Fire Code
 
-**Fire Code** é um servidor MCP e plugin de código aberto que dá aos agentes de codificação com IA memória persistente, busca de código ciente do contexto e execução rastreável via Git.
+**Fire Code** é um servidor MCP e plugin de código aberto que equipa agentes de IA com memória persistente, busca de código contextualizada e execução rastreável via Git.
 
 <CardGroup cols={2}>
   <Card title="Início Rápido" icon="rocket" href="/pt-br/inicio-rapido">
     Instale o Fire Code e indexe seu primeiro projeto em menos de 5 minutos.
   </Card>
   <Card title="Ferramentas MCP" icon="wrench" href="/pt-br/ferramentas-mcp">
-    Explore as 8 ferramentas MCP disponíveis para seu agente de IA.
+    As 8 ferramentas MCP que o agente usa automaticamente.
   </Card>
   <Card title="Corpus de Conhecimento" icon="book" href="/pt-br/corpus-conhecimento">
     Alimente docs de arquitetura e decisões no contexto do agente.
@@ -24,11 +24,11 @@ description: O que é o Fire Code e por que ele existe?
 
 ## O Problema
 
-Agentes de IA como Claude Code, Cursor e Windsurf têm janelas de contexto limitadas. Cada sessão começa do zero — sem memória de decisões passadas, sem consciência da estrutura do projeto, sem conhecimento das convenções de código. Isso leva a:
+Agentes de IA como Claude Code, Cursor e Windsurf têm janelas de contexto limitadas. Cada sessão começa do zero — sem memória de decisões anteriores, sem conhecimento da estrutura do projeto, sem consciência das convenções adotadas. Isso resulta em:
 
 - **Duplicação de código** — o agente reimplementa o que já existe
-- **Deriva arquitetural** — decisões de sessões passadas são esquecidas
-- **Sobrecarga de contexto** — você cola arquivos inteiros para dar contexto ao agente
+- **Deriva arquitetural** — decisões de sessões anteriores são esquecidas
+- **Sobrecarga de contexto** — você cola arquivos inteiros só para orientar o agente
 - **Sem rastreabilidade** — mudanças geradas por IA são difíceis de revisar e auditar
 
 ## A Solução
@@ -41,7 +41,7 @@ O Fire Code dá ao seu agente um **cérebro persistente**:
 | Decisões esquecidas | Corpus de Conhecimento (busca full-text FTS5) |
 | Duplicação de código | Traversal do grafo encontra implementações existentes |
 | Sem rastreabilidade | Cada mudança recebe branch + commit convencional |
-| Busca lenta | Smart search + outline sobre codebase indexado |
+| Busca lenta | Smart search + outline sobre o codebase indexado |
 
 ## IDEs Suportadas
 
@@ -67,14 +67,34 @@ fire-code index         ← escaneia arquivos, constrói grafo, gera embeddings
 .firecode/
   firecode.db           ← SQLite: grafo, observações, corpus, sessões
   vectors.db            ← Vectra HNSW: embeddings semânticos
-  bootstrap.log         ← injetado no Claude/Cursor/etc. no SessionStart
+  bootstrap.log         ← injetado no agente no início de cada sessão
      │
      ▼
-Sessão do IDE
-  └── Ferramentas MCP disponíveis:
+Sessão do Agente (Claude / Cursor / Goose / ...)
+  └── Ferramentas MCP — invocadas automaticamente pelo agente:
         smart_search / smart_outline      ← encontrar coisas rapidamente
         get_context / search_code         ← entender semanticamente
         get_graph / corpus_search         ← conhecimento estrutural + docs
         observations                      ← histórico de sessão
         execute                           ← fazer mudanças com Git
 ```
+
+## Principais Funcionalidades
+
+<AccordionGroup>
+  <Accordion title="Memória Híbrida">
+    Combina **busca vetorial** (all-MiniLM-L6-v2 via @xenova/transformers) para similaridade semântica com **traversal de grafo** (SQLite + graphology) para relacionamentos estruturais. O resultado: contexto semanticamente relevante e estruturalmente preciso.
+  </Accordion>
+  <Accordion title="Corpus de Conhecimento">
+    Indexa seus `docs/`, ADRs e notas de arquitetura em um índice full-text (SQLite FTS5). O agente consulta decisões arquiteturais antes de escrever código — evitando violações de restrições de design.
+  </Accordion>
+  <Accordion title="Tags de Privacidade">
+    Marque qualquer trecho de código, comentário ou seção de doc como privado. O Fire Code remove o conteúdo marcado antes de indexar ou enviar ao LLM. Arquivos como `.env`, `*.pem` e `secrets.*` são excluídos automaticamente.
+  </Accordion>
+  <Accordion title="Daemon Worker">
+    Servidor HTTP local (porta 37778) iniciado automaticamente pelos hooks. Oferece dashboard web, API REST para recuperação de contexto e acesso imediato às observações sem precisar subir um novo processo.
+  </Accordion>
+  <Accordion title="Rastreabilidade Git">
+    Cada mudança gerada por IA recebe seu próprio branch (`firecode/<agente>/<tipo>/<slug>`) e um commit convencional com metadados. Suporta estratégias `reuse`, `increment` e `fail`.
+  </Accordion>
+</AccordionGroup>
