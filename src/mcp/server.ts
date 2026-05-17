@@ -14,6 +14,7 @@ import { SmartOutlineInputSchema, smartOutlineTool } from './tools/smart_outline
 import { SmartSearchInputSchema, smartSearchTool } from './tools/smart_search.js';
 import { ObservationsInputSchema, observationsTool } from './tools/observations.js';
 import { CorpusSearchInputSchema, corpusSearchTool } from './tools/corpus_search.js';
+import { FindSimilarInputSchema, findSimilarTool } from './tools/find_similar.js';
 import { logger } from '../utils/logger.js';
 import { toFireCodeError } from '../utils/errors.js';
 import { zodToJsonSchema } from '../utils/zodToJsonSchema.js';
@@ -35,12 +36,13 @@ export async function startMcpServer(cwd: string = process.cwd()): Promise<void>
         description: `RECOMMENDED WORKFLOW (token-efficient):
 1. firecode.smart_search(query) → find files/symbols (compact index)
 2. firecode.smart_outline(file_path) → see all symbols in a file (folded view)
-3. firecode.get_context(query) → semantic + graph context for a task
-4. firecode.corpus_search(query) → search project docs/decisions/architecture notes
-5. firecode.get_graph(filter) → dependency relationships
-6. firecode.observations(query) → history of what was built/fixed/decided
-7. firecode.execute(task) → make changes with Git traceability
-Never call execute without first calling get_context or smart_search.
+3. firecode.find_similar(description) → check if similar code already exists (avoid duplication)
+4. firecode.get_context(query) → semantic + graph context for a task
+5. firecode.corpus_search(query) → search project docs/decisions/architecture notes
+6. firecode.get_graph(filter) → dependency relationships
+7. firecode.observations(query) → history of what was built/fixed/decided
+8. firecode.execute(task) → make changes with Git traceability
+Never call execute without first calling find_similar + get_context.
 Private content (<private>…</private>) is automatically redacted.`,
         inputSchema: { type: 'object', properties: {} },
       },
@@ -74,7 +76,14 @@ Private content (<private>…</private>) is automatically redacted.`,
         inputSchema: zodToJsonSchema(GetGraphInputSchema),
       },
 
-      // ── Tier 2b: Memory history ──────────────────────────────────────────
+      // ── Tier 2b: Duplicate prevention ────────────────────────────────────
+      {
+        name: 'firecode.find_similar',
+        description: 'Check if similar code already exists before implementing. Returns matching functions/classes by name (graph) and by content (semantic). Call before writing new functions to avoid duplication.',
+        inputSchema: zodToJsonSchema(FindSimilarInputSchema),
+      },
+
+      // ── Tier 2c: Memory history ──────────────────────────────────────────
       {
         name: 'firecode.observations',
         description: 'Search observation history — what was built, fixed, decided. Use query to search, ids[] to fetch full details (3-step: search → review IDs → get_by_ids).',
@@ -127,6 +136,11 @@ Private content (<private>…</private>) is automatically redacted.`,
         case 'firecode.search_code': {
           const input = SearchCodeInputSchema.parse(args);
           result = await searchCodeTool(input, cwd);
+          break;
+        }
+        case 'firecode.find_similar': {
+          const input = FindSimilarInputSchema.parse(args);
+          result = await findSimilarTool(input, cwd);
           break;
         }
         case 'firecode.observations': {

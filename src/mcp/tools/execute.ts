@@ -12,6 +12,9 @@ export const ExecuteInputSchema = z.object({
   agent: z.enum(['supervisor', 'dev', 'review']).optional().describe(
     'Agent role — sets branch prefix: firecode/supervisor/*, firecode/dev/*, firecode/review/*',
   ),
+  scaffold: z.boolean().optional().describe(
+    'Scaffold mode: create branch and surface relevant context, then return control to the host agent for implementation. Use this instead of the default sub-agent when you want to implement the task yourself.',
+  ),
 });
 
 export type ExecuteInput = z.infer<typeof ExecuteInputSchema>;
@@ -30,6 +33,7 @@ export async function executeTool(
       mode: input.mode,
       cwd,
       agentRole: input.agent as AgentRole | undefined,
+      scaffoldOnly: input.scaffold,
     });
 
     return JSON.stringify({

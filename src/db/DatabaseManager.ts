@@ -3,6 +3,7 @@ import { existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { SCHEMA_SQL } from './schema.js';
 import { SQLiteGraphStore } from '../graph/SQLiteGraphStore.js';
+import { SQLiteVectorStore } from '../vector/SQLiteVectorStore.js';
 
 export type ObservationType = 'change' | 'bugfix' | 'feature' | 'refactor' | 'decision' | 'discovery';
 
@@ -278,8 +279,29 @@ export class DatabaseManager {
 
   // ── Graph ─────────────────────────────────────────────────────────────────
 
+  // ── Project Metadata ──────────────────────────────────────────────────────
+
+  setProjectMeta(project: string, key: string, value: string): void {
+    this.db.prepare(
+      `INSERT OR REPLACE INTO project_metadata (project, key, value) VALUES (?, ?, ?)`
+    ).run(project, key, value);
+  }
+
+  getProjectMeta(project: string, key: string): string | null {
+    const row = this.db.prepare(
+      `SELECT value FROM project_metadata WHERE project = ? AND key = ?`
+    ).get(project, key) as { value: string } | null;
+    return row ? row.value : null;
+  }
+
+  // ── Graph ─────────────────────────────────────────────────────────────────
+
   getGraphStore(project: string): SQLiteGraphStore {
     return new SQLiteGraphStore(this.db, project);
+  }
+
+  getVectorStore(project: string): SQLiteVectorStore {
+    return new SQLiteVectorStore(this.db, project);
   }
 
   close(): void {

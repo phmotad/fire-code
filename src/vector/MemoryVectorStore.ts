@@ -1,20 +1,15 @@
 import type { Document, ScoredDocument, VectorStore } from './VectorStore.js';
 import { logger } from '../utils/logger.js';
-
-type EmbedPipeline = (texts: string[], options?: Record<string, unknown>) => Promise<{ data: Float32Array[] }>;
-let pipelineCache: EmbedPipeline | null = null;
+import { ensureModel, extractEmbeddings } from '../utils/modelManager.js';
 
 async function getEmbedding(text: string): Promise<number[]> {
   try {
-    if (!pipelineCache) {
-      const { pipeline } = await import('@xenova/transformers');
-      pipelineCache = (await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2')) as unknown as EmbedPipeline;
-    }
-    const output = await pipelineCache!([text], { pooling: 'mean', normalize: true });
-    return Array.from(output.data[0]);
+    const pipe = await ensureModel();
+    if (!pipe) return [];
+    const tensor = await pipe([text], { pooling: 'mean', normalize: true });
+    return extractEmbeddings(tensor)[0] ?? [];
   } catch {
-    // Fallback: zero vector of dim 384
-    return new Array(384).fill(0) as number[];
+    return [];
   }
 }
 
@@ -64,10 +59,17 @@ export class MemoryVectorStore implements VectorStore {
 
     if (this.useEmbeddings && docsWithEmbeddings.length > 0) {
       const queryEmbedding = await getEmbedding(query);
-      scored = docsWithEmbeddings.map((doc) => ({
-        document: doc,
-        score: cosineSimilarity(queryEmbedding, doc.embedding!),
-      }));
+      if (queryEmbedding.length > 0) {
+        scored = docsWithEmbeddings.map((doc) => ({
+          document: doc,
+          score: cosineSimilarity(queryEmbedding, doc.embedding!),
+        }));
+      } else {
+        scored = docs.map((doc) => ({
+          document: doc,
+          score: textSimilarity(query, doc.text),
+        }));
+      }
     } else {
       scored = docs.map((doc) => ({
         document: doc,

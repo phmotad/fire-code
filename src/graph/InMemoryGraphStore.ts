@@ -39,10 +39,22 @@ export class InMemoryGraphStore implements GraphStore {
     return result;
   }
 
+  dependantsOf(targetId: string): GraphNode[] {
+    return this.edges
+      .filter(e => e.to === targetId)
+      .map(e => this.nodes.get(e.from))
+      .filter((n): n is GraphNode => n !== undefined);
+  }
+
   query(filter: GraphQueryFilter): GraphNode[] {
     return Array.from(this.nodes.values()).filter((node) => {
       if (filter.type && node.type !== filter.type) return false;
-      if (filter.label && !node.label.toLowerCase().includes(filter.label.toLowerCase())) return false;
+      if (filter.label) {
+        const match = filter.exact
+          ? node.label === filter.label
+          : node.label.toLowerCase().includes(filter.label.toLowerCase());
+        if (!match) return false;
+      }
       if (filter.path) {
         if (node.type === 'file' && !node.path.includes(filter.path)) return false;
         if (node.type === 'function' && !node.filePath.includes(filter.path)) return false;

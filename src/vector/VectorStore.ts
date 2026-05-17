@@ -16,5 +16,4 @@ export interface VectorStore {
   delete(ids: string[]): Promise<void>;
   clear(): Promise<void>;
   size(): number;
-  serialize(): string;
 }

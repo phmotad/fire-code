@@ -1,9 +1,11 @@
 import { z } from 'zod';
-import { MemoryVectorStore } from '../../vector/MemoryVectorStore.js';
+import { DatabaseManager } from '../../db/DatabaseManager.js';
 import { FallbackMemory } from '../../memory/FallbackMemory.js';
 import { toFireCodeError } from '../../utils/errors.js';
-import { existsSync, readFileSync } from 'fs';
-import { getVectorsPath } from '../../utils/paths.js';
+import { existsSync } from 'fs';
+import { getFireCodeDir } from '../../utils/paths.js';
+import { basename } from 'path';
+import { readFileSync } from 'fs';
 
 export const SearchCodeInputSchema = z.object({
   query: z.string().min(1).describe('Semantic search query for code'),
@@ -12,17 +14,33 @@ export const SearchCodeInputSchema = z.object({
 
 export type SearchCodeInput = z.infer<typeof SearchCodeInputSchema>;
 
+function getProjectName(cwd: string): string {
+  try {
+    const pkg = JSON.parse(readFileSync(require('path').join(cwd, 'package.json'), 'utf8')) as { name?: string };
+    return pkg.name ?? basename(cwd);
+  } catch { return basename(cwd); }
+}
+
 export async function searchCodeTool(input: SearchCodeInput, cwd: string): Promise<string> {
   try {
-    const vectorsPath = getVectorsPath(cwd);
+    const firedotDir = getFireCodeDir(cwd);
 
-    if (!existsSync(vectorsPath)) {
+    if (!existsSync(firedotDir)) {
       const fallback = new FallbackMemory(cwd);
       const ctx = await fallback.retrieve(input.query, input.k);
       return ctx.combined;
     }
 
-    const vectorStore = MemoryVectorStore.deserialize(readFileSync(vectorsPath, 'utf8'));
+    const project = getProjectName(cwd);
+    const db = DatabaseManager.getInstance(firedotDir);
+    const vectorStore = db.getVectorStore(project);
+
+    if (vectorStore.size() === 0) {
+      const fallback = new FallbackMemory(cwd);
+      const ctx = await fallback.retrieve(input.query, input.k);
+      return ctx.combined;
+    }
+
     const results = await vectorStore.search(input.query, input.k);
 
     if (results.length === 0) return 'No results found.';

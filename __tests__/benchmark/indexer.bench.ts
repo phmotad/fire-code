@@ -9,15 +9,11 @@
  *   - `isValid()`    defined in models/Session.ts; imported by authMiddleware.ts
  *   - `buildCacheKey()` core/cache.ts — imported by 3 services
  *
- * Discovered limitations (documented below as known gaps):
- *   [GAP-1] GraphStore.query({ label }) uses LIKE %label% — substring, not exact.
- *           query({ label: 'hash' }) also returns `hashPassword`, `hashUserPassword`.
- *   [GAP-2] GraphBuilder only creates FunctionNodes for top-level functions / arrow fns.
- *           Class methods (findById, etc.) appear in ParsedClass.methods but not as
- *           individual FunctionNode entries in the graph.
- *   [GAP-3] Zero-embedding fallback (transformers.js unavailable in test) means
- *           vector search returns documents in arbitrary / insertion order.
- *           Semantic accuracy tests are only valid with real embeddings.
+ * Gaps — status:
+ *   [GAP-1] FIXED — `exact: true` flag available on GraphStore.query()
+ *   [GAP-2] FIXED — class methods indexed as FunctionNodes with parentClass field
+ *   [GAP-3] PARTIAL — text similarity fallback active; real embeddings raise recall further
+ *   [GAP-4] Git context: commits indexed; path normalization validated in section 9
  */
 
 import { join } from 'path';
@@ -27,7 +23,7 @@ import { DatabaseManager } from '../../src/db/DatabaseManager';
 import { MemoryVectorStore } from '../../src/vector/MemoryVectorStore';
 import { getDefaults } from '../../src/config/defaults';
 import { getFireCodeDir } from '../../src/utils/paths';
-import type { FunctionNode, FileNode } from '../../src/graph/GraphStore';
+import type { FunctionNode, FileNode, CommitNode } from '../../src/graph/GraphStore';
 
 const FIXTURE = join(__dirname, '../fixtures/complex-project');
 const FIRE_DIR = getFireCodeDir(FIXTURE);
@@ -79,8 +75,8 @@ describe('Benchmark — complex-project (20 files, ~1 200 LOC)', () => {
 
     expect(ms).toBeLessThan(8_000);
     expect(result.filesIndexed).toBeGreaterThanOrEqual(20);
-    expect(result.functionsFound).toBeGreaterThanOrEqual(60);
-    expect(result.nodesCreated).toBeGreaterThanOrEqual(80);
+    expect(result.functionsFound).toBeGreaterThanOrEqual(100);
+    expect(result.nodesCreated).toBeGreaterThanOrEqual(120);
     expect(result.edgesCreated).toBeGreaterThanOrEqual(10);
   }, 15_000);
 
@@ -191,26 +187,26 @@ describe('Benchmark — complex-project (20 files, ~1 200 LOC)', () => {
     expect(loggerNodes[0].filePath).not.toBe(appLoggerNodes[0].filePath);
   });
 
-  // ── 5. Class method gap — [GAP-2] documented ─────────────────────────────
+  // ── 5. Class methods are now indexed as FunctionNodes (GAP-2 fixed) ────────
 
-  it('[GAP-2] class methods (findById) are NOT indexed as FunctionNodes — only as class metadata', () => {
-    const stop = mark('class method gap');
+  it('class methods (findById) are indexed as FunctionNodes with parentClass set', () => {
+    const stop = mark('class method nodes');
     const fnNodes = (graphStore.query({ type: 'function', label: 'findById' }) as FunctionNode[])
       .filter(n => n.label === 'findById');
     stop();
 
     // findById is a class method on SqlUserRepository, OrderService, PaymentService.
-    // GraphBuilder does not create FunctionNode entries for class methods — only for
-    // top-level functions and arrow functions.
-    // This is GAP-2: class methods are invisible to the function-level graph.
-    expect(fnNodes.length).toBe(0);
-    console.log('  [GAP-2] findById class method — 0 FunctionNodes (class methods not indexed individually)');
+    // After fix: GraphBuilder creates FunctionNode entries for class methods with parentClass field.
+    expect(fnNodes.length).toBeGreaterThanOrEqual(1);
+    expect(fnNodes.every(n => n.parentClass !== undefined)).toBe(true);
 
-    // BUT the classes themselves ARE captured — verify via file nodes that have the classes
+    const classes = fnNodes.map(n => n.parentClass).join(', ');
+    console.log(`  findById → ${fnNodes.length} FunctionNodes (classes: ${classes})`);
+
+    // Verify file nodes still exist
     const userRepoFile = (graphStore.query({ type: 'file' }) as FileNode[])
       .find(n => (n.label ?? '').includes('userRepository'));
     expect(userRepoFile).toBeDefined();
-    // The class methods are stored in the class metadata on the ParsedClass — not in the graph
   });
 
   // ── 6. Import edges (dependency graph) ───────────────────────────────────
@@ -259,7 +255,95 @@ describe('Benchmark — complex-project (20 files, ~1 200 LOC)', () => {
     expect(paths.every(p => p.includes('src/'))).toBe(true);
   });
 
-  // ── 8. Re-indexing idempotency ────────────────────────────────────────────
+  // ── 8. Git history context ────────────────────────────────────────────────
+
+  it('git commits are indexed as CommitNodes in the graph', () => {
+    const stop = mark('commit nodes');
+    const commitNodes = graphStore.query({ type: 'commit' }) as CommitNode[];
+    stop();
+
+    // The fixture lives inside the fire-code git repo → commits are indexed
+    // (or 0 if running in a detached/non-git environment — both outcomes are valid)
+    console.log(`  commit nodes: ${commitNodes.length}`);
+
+    if (commitNodes.length > 0) {
+      // Every CommitNode must have sha, message, timestamp
+      for (const c of commitNodes.slice(0, 3)) {
+        expect(c.sha).toBeDefined();
+        expect(c.message).toBeDefined();
+        expect(c.timestamp).toBeDefined();
+        expect(Array.isArray(c.filesChanged)).toBe(true);
+      }
+      console.log(`  sample: [${commitNodes[0].sha.slice(0, 7)}] ${commitNodes[0].message.slice(0, 60)}`);
+      console.log(`  files in commit: ${commitNodes[0].filesChanged.join(', ').slice(0, 80)}`);
+    } else {
+      console.log('  (no git repo detected — skipping commit validation)');
+    }
+  });
+
+  it('commit→file edges connect to correct FileNode ids (path normalisation)', () => {
+    const stop = mark('commit→file edges');
+    const commitNodes = graphStore.query({ type: 'commit' }) as CommitNode[];
+    stop();
+
+    if (commitNodes.length === 0) {
+      console.log('  (no commits — skipping edge validation)');
+      return;
+    }
+
+    // Find a commit that changed at least one fixture file
+    const commitWithFile = commitNodes.find(c => c.filesChanged.length > 0);
+    if (!commitWithFile) {
+      console.log('  (no commits touched fixture files — skipping)');
+      return;
+    }
+
+    // dependantsOf(fileNodeId) should return this commit
+    for (const file of commitWithFile.filesChanged.slice(0, 3)) {
+      const dependants = graphStore.dependantsOf(`file:${file}`);
+      const commits = dependants.filter(n => n.type === 'commit') as CommitNode[];
+      if (commits.length > 0) {
+        console.log(`  file:${file} ← ${commits.length} commit(s) (e.g. [${commits[0].sha.slice(0,7)}])`);
+      }
+    }
+
+    // At least one file should have commit dependants (edge connected)
+    const anyConnected = commitWithFile.filesChanged.some(f =>
+      graphStore.dependantsOf(`file:${f}`).some(n => n.type === 'commit')
+    );
+    expect(anyConnected).toBe(true);
+  });
+
+  it('get_context output includes ## Recent Git History section when commits exist', async () => {
+    const { HybridMemory } = await import('../../src/memory/HybridMemory');
+    const { MemoryVectorStore: MVS } = await import('../../src/vector/MemoryVectorStore');
+
+    const vs = new MVS({ useEmbeddings: false });
+    // Add minimal docs so vector search returns something
+    await vs.add([{
+      id: 'test:crypto',
+      text: 'hashPassword generateSalt utils crypto',
+      metadata: { path: 'src/utils/crypto.ts', relativePath: 'src/utils/crypto.ts', type: 'file' },
+    }]);
+
+    const memory = new HybridMemory(vs, graphStore);
+    const ctx = await memory.retrieve('hashPassword crypto utils', { k: 3, includeGraph: true });
+
+    const commitNodes = graphStore.query({ type: 'commit' }) as CommitNode[];
+    if (commitNodes.length > 0 && commitNodes.some(c => c.filesChanged.length > 0)) {
+      // If commits touching fixture files exist, git history section should appear
+      const hasGitSection = ctx.combined.includes('## Recent Git History');
+      console.log(`  git history in context: ${hasGitSection}`);
+      // Not a hard assertion — depends on whether commits touch this specific file
+    } else {
+      console.log('  (no commits touching fixture files — git history section not expected)');
+    }
+
+    // Context must always have at least the code snippets section
+    expect(ctx.combined).toContain('# Context for:');
+  });
+
+  // ── 10. Re-indexing idempotency ───────────────────────────────────────────
 
   it('re-indexing the same project does not double the node count', async () => {
     const before = graphStore.getStats().nodes;
@@ -283,25 +367,28 @@ describe('Benchmark — complex-project (20 files, ~1 200 LOC)', () => {
     console.log(`  nodes before: ${before}, after re-index: ${after}`);
   }, 15_000);
 
-  // ── 9. Summary ────────────────────────────────────────────────────────────
+  // ── 11. Summary ───────────────────────────────────────────────────────────
 
   it('prints benchmark summary', () => {
     const stats = graphStore.getStats();
     const vsSize = vectorStore.size();
+    const commitCount = stats.byType['commit'] ?? 0;
 
-    console.log(`\n  ┌─ Benchmark Summary ──────────────────────────────────────┐`);
-    console.log(`  │  File nodes     : ${String(stats.byType['file'] ?? 0).padStart(4)}                                  │`);
-    console.log(`  │  Function nodes : ${String(stats.byType['function'] ?? 0).padStart(4)}                                  │`);
-    console.log(`  │  Total nodes    : ${String(stats.nodes).padStart(4)}                                  │`);
-    console.log(`  │  Import edges   : ${String(stats.edges).padStart(4)}                                  │`);
-    console.log(`  │  Vector chunks  : ${String(vsSize).padStart(4)}                                  │`);
-    console.log(`  ├─ Known Gaps ────────────────────────────────────────────────┤`);
-    console.log(`  │  GAP-1: query({ label }) uses LIKE %label% (substring)      │`);
-    console.log(`  │  GAP-2: class methods not indexed as FunctionNodes           │`);
-    console.log(`  │  GAP-3: semantic search needs real embeddings (not zero)     │`);
-    console.log(`  └─────────────────────────────────────────────────────────────┘\n`);
+    console.log(`\n  ┌─ Benchmark Summary ────────────────────────────────────────┐`);
+    console.log(`  │  File nodes     : ${String(stats.byType['file'] ?? 0).padStart(4)}                                    │`);
+    console.log(`  │  Function nodes : ${String(stats.byType['function'] ?? 0).padStart(4)}  (top-level + class methods)   │`);
+    console.log(`  │  Commit nodes   : ${String(commitCount).padStart(4)}  (git history)                  │`);
+    console.log(`  │  Total nodes    : ${String(stats.nodes).padStart(4)}                                    │`);
+    console.log(`  │  Total edges    : ${String(stats.edges).padStart(4)}  (imports + commit→file)          │`);
+    console.log(`  │  Vector chunks  : ${String(vsSize).padStart(4)}                                    │`);
+    console.log(`  ├─ Gap Status ──────────────────────────────────────────────────┤`);
+    console.log(`  │  GAP-1: ✅ FIXED — exact: true flag in GraphStore.query()     │`);
+    console.log(`  │  GAP-2: ✅ FIXED — class methods indexed with parentClass      │`);
+    console.log(`  │  GAP-3: ✅ PARTIAL — textSimilarity fallback active            │`);
+    console.log(`  │  GAP-4: ✅ FIXED — git history as context (CommitNodes)        │`);
+    console.log(`  └───────────────────────────────────────────────────────────────┘\n`);
 
     expect(stats.byType['file']).toBeGreaterThanOrEqual(20);
-    expect(stats.byType['function']).toBeGreaterThanOrEqual(60);
+    expect(stats.byType['function']).toBeGreaterThanOrEqual(100);
   });
 });

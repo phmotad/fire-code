@@ -1,140 +1,102 @@
 {
-  "timestamp": "2026-04-18T16:23:16.240Z",
+  "timestamp": "2026-04-21T12:29:56.607Z",
   "version": "2.0",
   "scenarios": [
     {
       "id": "H2",
       "hypothesis": "Code Duplication",
       "without": {
-        "lines": 35,
+        "lines": 41,
         "duplications": 0,
-        "reuses": 5,
+        "reuses": 3,
         "symbols": [
           "validateEmail",
           "generateToken",
-          "sendEmail",
-          "buildPasswordResetEmail",
-          "db."
+          "buildPasswordResetEmail"
         ]
       },
       "with": {
-        "lines": 35,
+        "lines": 0,
         "duplications": 0,
-        "reuses": 5,
-        "symbols": [
-          "validateEmail",
-          "generateToken",
-          "sendEmail",
-          "buildPasswordResetEmail",
-          "db."
-        ]
+        "reuses": 0,
+        "symbols": []
       }
     },
     {
       "id": "H1",
       "hypothesis": "Context Awareness",
       "without": {
-        "lines": 46,
+        "lines": 0,
         "duplications": 0,
-        "reuses": 3,
-        "symbols": [
-          "validateEmail",
-          "comparePassword",
-          "db."
-        ]
+        "reuses": 0,
+        "symbols": []
       },
       "with": {
-        "lines": 31,
+        "lines": 0,
         "duplications": 0,
-        "reuses": 3,
-        "symbols": [
-          "validateEmail",
-          "comparePassword",
-          "db."
-        ]
+        "reuses": 0,
+        "symbols": []
       }
     },
     {
       "id": "H4",
       "hypothesis": "Feature Awareness",
       "without": {
-        "lines": 7,
+        "lines": 0,
         "duplications": 0,
-        "reuses": 1,
-        "symbols": [
-          "registerUser"
-        ]
+        "reuses": 0,
+        "symbols": []
       },
       "with": {
-        "lines": 45,
+        "lines": 0,
         "duplications": 0,
-        "reuses": 5,
-        "symbols": [
-          "validateEmail",
-          "validatePassword",
-          "hashPassword",
-          "registerUser",
-          "db."
-        ]
+        "reuses": 0,
+        "symbols": []
       }
     },
     {
       "id": "H5",
       "hypothesis": "Graph Traversal",
       "without": {
-        "lines": 24,
+        "lines": 0,
         "duplications": 0,
-        "reuses": 2,
-        "symbols": [
-          "generateToken",
-          "db."
-        ]
+        "reuses": 0,
+        "symbols": []
       },
       "with": {
-        "lines": 43,
+        "lines": 0,
         "duplications": 0,
-        "reuses": 2,
-        "symbols": [
-          "generateToken",
-          "db."
-        ]
+        "reuses": 0,
+        "symbols": []
       }
     },
     {
       "id": "H6",
       "hypothesis": "Corpus Knowledge",
       "without": {
-        "lines": 33,
+        "lines": 0,
         "duplications": 0,
-        "reuses": 3,
-        "symbols": [
-          "validatePassword",
-          "hashPassword",
-          "db."
-        ]
+        "reuses": 0,
+        "symbols": []
       },
       "with": {
-        "lines": 33,
+        "lines": 0,
         "duplications": 0,
-        "reuses": 3,
-        "symbols": [
-          "validatePassword",
-          "hashPassword",
-          "db."
-        ]
+        "reuses": 0,
+        "symbols": []
       }
     }
   ],
   "totals": {
     "dupWithout": 0,
     "dupWith": 0,
-    "reuseWithout": 14,
-    "reuseWith": 18,
-    "linesWithout": 145,
-    "linesWith": 187,
-    "linesDelta": -29,
-    "reuseDelta": 29,
-    "confirmed": 1,
+    "reuseWithout": 3,
+    "reuseWith": 0,
+    "linesWithout": 41,
+    "linesWith": 0,
+    "linesDelta": 100,
+    "reuseDelta": -100,
+    "confirmed": 0,
     "total": 5
   }
 }

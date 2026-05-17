@@ -9,7 +9,10 @@ export function buildGraphFromParsed(files: ParsedFile[], graph: GraphStore): vo
       type: 'file',
       label: file.relativePath,
       path: file.relativePath,
-      functions: file.functions.map((f) => f.name),
+      functions: [
+        ...file.functions.map(f => f.name),
+        ...file.classes.flatMap(cls => cls.methods.map(m => `${cls.name}.${m.name}`)),
+      ],
       exports: file.exports,
     };
     graph.addNode(node);
@@ -30,6 +33,25 @@ export function buildGraphFromParsed(files: ParsedFile[], graph: GraphStore): vo
       };
       graph.addNode(fnNode);
     }
+
+    // Add class method nodes
+    for (const cls of file.classes) {
+      for (const method of cls.methods) {
+        const methodNode: FunctionNode = {
+          id: `fn:${file.relativePath}:${cls.name}.${method.name}`,
+          type: 'function',
+          label: method.name,
+          filePath: file.relativePath,
+          line: method.line,
+          isExported: method.isExported,
+          parameters: method.parameters,
+          returnType: method.returnType,
+          parentClass: cls.name,
+        };
+        graph.addNode(methodNode);
+      }
+    }
+
 
     // Add import edges (file → dependency)
     for (const imp of file.imports) {

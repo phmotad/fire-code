@@ -31,12 +31,12 @@ import { join } from 'path';
 import { existsSync, rmSync, readdirSync, readFileSync, statSync } from 'fs';
 import { indexProject } from '../../src/indexing/Indexer';
 import { DatabaseManager } from '../../src/db/DatabaseManager';
-import { MemoryVectorStore } from '../../src/vector/MemoryVectorStore';
 import { getDefaults } from '../../src/config/defaults';
 import { getFireCodeDir } from '../../src/utils/paths';
 import { smartSearchTool } from '../../src/mcp/tools/smart_search';
 import { getContextTool } from '../../src/mcp/tools/get_context';
 import { searchCodeTool } from '../../src/mcp/tools/search_code';
+import { findSimilarTool } from '../../src/mcp/tools/find_similar';
 
 // ─── config ──────────────────────────────────────────────────────────────────
 
@@ -256,7 +256,7 @@ describe('Claude WITHOUT vs WITH fire-code — context efficiency benchmark', ()
 
     const db = DatabaseManager.getInstance(FIRE_DIR);
     const graphStore = db.getGraphStore('complex-project');
-    const vectorStore = new MemoryVectorStore({ useEmbeddings: false });
+    const vectorStore = db.getVectorStore('complex-project');
 
     await indexProject(FIXTURE, config, graphStore, vectorStore);
   }, 20_000);
@@ -397,6 +397,50 @@ describe('Claude WITHOUT vs WITH fire-code — context efficiency benchmark', ()
     });
   });
 
+  // ── F: find_similar — anti-duplication tool ──────────────────────────────
+
+  interface FindSimilarResult {
+    taskId: string;
+    description: string;
+    expectedSymbol: string;
+    tokens: number;
+    latencyMs: number;
+    found: boolean;
+  }
+
+  const FIND_TASKS = [
+    { id: 'F01', description: 'hash password with salt',         expectedSymbol: 'hashPassword' },
+    { id: 'F02', description: 'validate email address',          expectedSymbol: 'validateEmail' },
+    { id: 'F03', description: 'cancel order cancellable',        expectedSymbol: 'cancelOrder' },
+    { id: 'F04', description: 'refund payment processor',        expectedSymbol: 'refundPayment' },
+    { id: 'F05', description: 'rate limit middleware request',   expectedSymbol: 'rateLimitMiddleware' },
+    { id: 'F06', description: 'send welcome email',              expectedSymbol: 'buildWelcomeEmail' },
+    { id: 'F07', description: 'find user by email database',     expectedSymbol: 'findByEmail' },
+    { id: 'F08', description: 'cache with TTL expiry',           expectedSymbol: 'buildCacheKey' },
+  ];
+
+  const findSimilarResults: FindSimilarResult[] = [];
+
+  describe('F — find_similar: duplicate prevention', () => {
+    it.each(FIND_TASKS)('F.$id — $description', async (task) => {
+      const t0 = performance.now();
+      const response = await findSimilarTool({ description: task.description, type: 'any', k: 5 }, FIXTURE);
+      const latencyMs = parseFloat((performance.now() - t0).toFixed(1));
+
+      const norm = response.replace(/\\/g, '/');
+      findSimilarResults.push({
+        taskId: task.id,
+        description: task.description,
+        expectedSymbol: task.expectedSymbol,
+        tokens: tokens(response),
+        latencyMs,
+        found: norm.toLowerCase().includes(task.expectedSymbol.toLowerCase()),
+      });
+
+      expect(response.length).toBeGreaterThan(0);
+    });
+  });
+
   // ── Final report ──────────────────────────────────────────────────────────
 
   it('prints full comparison report', () => {
@@ -482,6 +526,26 @@ describe('Claude WITHOUT vs WITH fire-code — context efficiency benchmark', ()
       console.log(`    ${cat.padEnd(18)}: NL → ${pctNL(smartSearchResults)}% / ${pctNL(getContextResults)}% / ${pctNL(vecReport.results ?? [])}%   |   Sym → ${pctSym(smartSymbolResults)}%`);
     }
 
+    // ── find_similar: anti-duplication results ──
+    const findFound = findSimilarResults.filter(r => r.found).length;
+    const findRecall = Math.round((findFound / Math.max(findSimilarResults.length, 1)) * 100);
+    const findAvgTokens = findSimilarResults.length
+      ? Math.round(findSimilarResults.reduce((s, r) => s + r.tokens, 0) / findSimilarResults.length)
+      : 0;
+    const findAvgLatency = findSimilarResults.length
+      ? parseFloat((findSimilarResults.reduce((s, r) => s + r.latencyMs, 0) / findSimilarResults.length).toFixed(1))
+      : 0;
+
+    console.log(`\n  find_similar — Anti-duplication (${findSimilarResults.length} tasks):`);
+    console.log(`  ${'ID'.padEnd(4)} ${'Description'.padEnd(35)} ${'Expected symbol'.padEnd(25)} Found  Tk    Lat`);
+    console.log('  ' + '─'.repeat(82));
+    for (const r of findSimilarResults) {
+      const mark = r.found ? ' ✓  ' : ' ✗  ';
+      console.log(`  ${r.taskId.padEnd(4)} ${r.description.slice(0, 35).padEnd(35)} ${r.expectedSymbol.padEnd(25)} ${mark} ${r.tokens.toString().padStart(4)}  ${r.latencyMs}ms`);
+    }
+    console.log(`\n  find_similar summary: recall ${findRecall}% | avg ${findAvgTokens} tokens | avg ${findAvgLatency}ms`);
+    console.log(`  Token savings vs. full repo: ${Math.round((1 - findAvgTokens / baselineReport.avgTokensPerQuery) * 100)}%`);
+
     // ── key findings ──
     console.log(`\n  Key findings:`);
     console.log(`    1. Token savings  : ~96% reduction with any fire-code tool`);
@@ -489,7 +553,8 @@ describe('Claude WITHOUT vs WITH fire-code — context efficiency benchmark', ()
     console.log(`       smart_search   : ${smartSymReport.recallPct}% recall on symbol queries — its intended use`);
     console.log(`    3. get_context    : ${ctxReport.recallPct}% recall on NL (text fallback active — embeddings improve this)`);
     console.log(`    4. search_code    : ${vecReport.recallPct}% recall with zero embeddings (arbitrary order — needs real model)`);
-    console.log(`    5. Confusion rate : NoFC 100% | smart_search ${smartNLReport.confusionPct}% | get_context ${ctxReport.confusionPct}% | search_code ${vecReport.confusionPct}%`);
+    console.log(`    5. find_similar   : ${findRecall}% recall — prevents duplicating code that already exists`);
+    console.log(`    6. Confusion rate : NoFC 100% | smart_search ${smartNLReport.confusionPct}% | get_context ${ctxReport.confusionPct}% | search_code ${vecReport.confusionPct}%`);
     console.log('');
 
     // assertions

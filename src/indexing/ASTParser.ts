@@ -13,7 +13,7 @@ export interface ParsedClass {
   name: string;
   line: number;
   isExported: boolean;
-  methods: string[];
+  methods: ParsedFunction[];
 }
 
 export interface ParsedImport {
@@ -202,7 +202,13 @@ function parseTsJs(file: ScannedFile, project: InstanceType<typeof Project>): Pa
       name: cls.getName() ?? '<anonymous>',
       line: cls.getStartLineNumber(),
       isExported: cls.isExported(),
-      methods: cls.getMethods().map(m => m.getName()),
+      methods: cls.getMethods().map(m => ({
+        name: m.getName(),
+        line: m.getStartLineNumber(),
+        isExported: !m.hasModifier(SyntaxKind.PrivateKeyword) && !m.hasModifier(SyntaxKind.ProtectedKeyword),
+        parameters: m.getParameters().map(p => p.getName()),
+        returnType: m.getReturnTypeNode()?.getText(),
+      })),
     }));
 
     const imports: ParsedImport[] = sourceFile.getImportDeclarations().map(imp => ({

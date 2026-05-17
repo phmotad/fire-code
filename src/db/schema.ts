@@ -120,4 +120,24 @@ CREATE TABLE IF NOT EXISTS graph_edges (
 CREATE INDEX IF NOT EXISTS idx_gnodes_project ON graph_nodes(project, type);
 CREATE INDEX IF NOT EXISTS idx_gedges_from    ON graph_edges(project, from_id);
 CREATE INDEX IF NOT EXISTS idx_gedges_to      ON graph_edges(project, to_id);
+
+-- Vector Embeddings (persistent, replaces in-memory MemoryVectorStore)
+CREATE TABLE IF NOT EXISTS vector_chunks (
+  id        TEXT    NOT NULL,
+  project   TEXT    NOT NULL,
+  text      TEXT    NOT NULL,
+  metadata  TEXT    NOT NULL,  -- JSON
+  embedding TEXT,               -- JSON float array, NULL when model unavailable
+  PRIMARY KEY (project, id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_vchunks_project ON vector_chunks(project);
+
+-- Project-level key-value metadata (index hash, timestamps, etc.)
+CREATE TABLE IF NOT EXISTS project_metadata (
+  project TEXT NOT NULL,
+  key     TEXT NOT NULL,
+  value   TEXT NOT NULL,
+  PRIMARY KEY (project, key)
+);
 `;

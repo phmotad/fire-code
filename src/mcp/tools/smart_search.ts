@@ -1,7 +1,9 @@
 import { z } from 'zod';
-import { resolve } from 'path';
+import { resolve, relative, join, extname, basename } from 'path';
 import { existsSync, readdirSync, readFileSync, statSync } from 'fs';
-import { join, extname, relative } from 'path';
+import { DatabaseManager } from '../../db/DatabaseManager.js';
+import { getFireCodeDir } from '../../utils/paths.js';
+import type { FunctionNode, FileNode } from '../../graph/GraphStore.js';
 
 export const SmartSearchInputSchema = z.object({
   query: z.string().describe('Search term — matches symbol names, file names, and content'),
@@ -18,9 +20,16 @@ const CODE_EXTS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mts', '.cts', '.py', 
 interface SearchResult {
   file: string;
   line: number;
-  kind: 'symbol' | 'content';
+  kind: 'graph' | 'symbol' | 'content';
   match: string;
   context: string;
+}
+
+function getProjectName(rootDir: string): string {
+  try {
+    const pkg = JSON.parse(readFileSync(join(rootDir, 'package.json'), 'utf8')) as { name?: string };
+    return pkg.name ?? basename(rootDir);
+  } catch { return basename(rootDir); }
 }
 
 function walkFiles(dir: string, filePattern?: string): string[] {
@@ -50,24 +59,76 @@ function walkFiles(dir: string, filePattern?: string): string[] {
   return files;
 }
 
-function scoreMatch(line: string, query: string): number {
-  const lq = query.toLowerCase();
+function scoreMatch(line: string, queryToken: string): number {
+  const lq = queryToken.toLowerCase();
   const ll = line.toLowerCase();
 
-  // Exact symbol match (function name, class name)
+  // Exact symbol declaration
   const symMatch = line.match(/(?:function|class|interface|type|const|let|var)\s+(\w+)/);
-  if (symMatch && symMatch[1].toLowerCase().includes(lq)) return 100;
+  if (symMatch && symMatch[1].toLowerCase() === lq) return 100;
+  if (symMatch && symMatch[1].toLowerCase().includes(lq)) return 80;
+
+  // Method declaration (handles class methods: `  methodName(`)
+  const methodMatch = line.match(/^\s+(?:async\s+|static\s+|private\s+|public\s+|protected\s+)*(\w+)\s*\(/);
+  if (methodMatch && methodMatch[1].toLowerCase() === lq) return 90;
 
   // Export match
-  if (line.includes('export') && ll.includes(lq)) return 80;
+  if (line.includes('export') && ll.includes(lq)) return 70;
 
   // Import match
-  if (line.includes('import') && ll.includes(lq)) return 60;
+  if (line.includes('import') && ll.includes(lq)) return 50;
 
   // General content
-  if (ll.includes(lq)) return 40;
+  if (ll.includes(lq)) return 30;
 
   return 0;
+}
+
+/** Query the indexed graph for exact symbol matches (fast, precise). */
+function graphSymbolSearch(tokens: string[], rootDir: string): SearchResult[] {
+  const firedotDir = getFireCodeDir(rootDir);
+  if (!existsSync(firedotDir)) return [];
+
+  try {
+    const project = getProjectName(rootDir);
+    const db = DatabaseManager.getInstance(firedotDir);
+    const graphStore = db.getGraphStore(project);
+    const results: SearchResult[] = [];
+
+    for (const token of tokens) {
+      if (token.length < 2) continue;
+
+      // Exact function/method match
+      const fnNodes = graphStore.query({ type: 'function', label: token, exact: true }) as FunctionNode[];
+      for (const node of fnNodes) {
+        const filePath = node.filePath.replace(/\\/g, '/');
+        const label = node.parentClass ? `${node.parentClass}.${node.label}` : node.label;
+        results.push({
+          file: filePath,
+          line: node.line,
+          kind: 'graph',
+          match: `${label}(${node.parameters.join(', ')})${node.returnType ? ': ' + node.returnType : ''}`,
+          context: `defined at L${node.line}${node.parentClass ? ` [class: ${node.parentClass}]` : ''}`,
+        });
+      }
+
+      // Exact file name match
+      const fileNodes = graphStore.query({ type: 'file', label: token, exact: true }) as FileNode[];
+      for (const node of fileNodes) {
+        results.push({
+          file: (node.path ?? node.label).replace(/\\/g, '/'),
+          line: 0,
+          kind: 'graph',
+          match: node.label,
+          context: `file (exports: ${node.exports.slice(0, 4).join(', ')})`,
+        });
+      }
+    }
+
+    return results;
+  } catch {
+    return [];
+  }
 }
 
 export async function smartSearchTool(input: SmartSearchInput, cwd: string): Promise<string> {
@@ -77,33 +138,45 @@ export async function smartSearchTool(input: SmartSearchInput, cwd: string): Pro
     return JSON.stringify({ error: `Directory not found: ${rootDir}` });
   }
 
-  const files = walkFiles(rootDir, input.file_pattern);
-  const results: SearchResult[] = [];
-  const query = input.query.toLowerCase();
+  // Split query into individual tokens for multi-symbol queries
+  const tokens = input.query.split(/[\s,]+/).filter(t => t.length > 1);
   const maxResults = input.max_results ?? 20;
 
+  // ── 1. Graph-based symbol lookup (highest precision) ─────────────────────
+  const graphResults = graphSymbolSearch(tokens, rootDir);
+
+  // ── 2. File scan (catches anything not yet indexed) ───────────────────────
+  const files = walkFiles(rootDir, input.file_pattern);
+  const fileResults: SearchResult[] = [];
+
   for (const filePath of files) {
-    if (results.length >= maxResults * 3) break;
+    if (fileResults.length >= maxResults * 4) break;
 
     let content: string;
     try { content = readFileSync(filePath, 'utf8'); } catch { continue; }
 
-    const relPath = relative(rootDir, filePath);
+    const relPath = relative(rootDir, filePath).replace(/\\/g, '/');
 
-    // File name match
-    if (relPath.toLowerCase().includes(query)) {
-      results.push({ file: relPath, line: 0, kind: 'symbol', match: relPath, context: `file: ${relPath}` });
+    // File name match against any token
+    const fileNameLower = relPath.toLowerCase();
+    if (tokens.some(t => fileNameLower.includes(t.toLowerCase()))) {
+      fileResults.push({ file: relPath, line: 0, kind: 'symbol', match: relPath, context: `file: ${relPath}` });
     }
 
     const lines = content.split('\n');
     for (let i = 0; i < lines.length; i++) {
-      const score = scoreMatch(lines[i], query);
-      if (score > 0) {
+      // Score against each token, take highest
+      let bestScore = 0;
+      for (const token of tokens) {
+        const s = scoreMatch(lines[i], token);
+        if (s > bestScore) bestScore = s;
+      }
+      if (bestScore > 0) {
         const ctx = lines.slice(Math.max(0, i - 1), i + 2).join('\n');
-        results.push({
+        fileResults.push({
           file: relPath,
           line: i + 1,
-          kind: score >= 80 ? 'symbol' : 'content',
+          kind: bestScore >= 70 ? 'symbol' : 'content',
           match: lines[i].trim().slice(0, 120),
           context: ctx,
         });
@@ -111,30 +184,47 @@ export async function smartSearchTool(input: SmartSearchInput, cwd: string): Pro
     }
   }
 
-  // Sort: symbols first, then by file name
-  results.sort((a, b) => {
+  // Sort file results: symbols first, then by file name
+  fileResults.sort((a, b) => {
     if (a.kind !== b.kind) return a.kind === 'symbol' ? -1 : 1;
     return a.file.localeCompare(b.file);
   });
 
-  const top = results.slice(0, maxResults);
+  // ── 3. Merge: graph results first (deduplicated by file+line) ────────────
+  const seen = new Set<string>();
+  const merged: SearchResult[] = [];
+
+  for (const r of graphResults) {
+    const key = `${r.file}:${r.line}`;
+    if (!seen.has(key)) { seen.add(key); merged.push(r); }
+  }
+  for (const r of fileResults) {
+    const key = `${r.file}:${r.line}`;
+    if (!seen.has(key)) { seen.add(key); merged.push(r); }
+  }
+
+  const top = merged.slice(0, maxResults);
 
   if (top.length === 0) {
     return `No results for "${input.query}" in ${rootDir}`;
   }
 
-  const lines = [`# Search: "${input.query}" — ${top.length} results (${files.length} files scanned)\n`];
+  const outputLines = [
+    `# Search: "${input.query}" — ${top.length} results (${graphResults.length} from index, ${files.length} files scanned)\n`,
+  ];
   let lastFile = '';
 
   for (const r of top) {
     if (r.file !== lastFile) {
-      lines.push(`\n## ${r.file}`);
+      outputLines.push(`\n## ${r.file}`);
       lastFile = r.file;
     }
     if (r.line > 0) {
-      lines.push(`  L${r.line}  [${r.kind}]  ${r.match}`);
+      outputLines.push(`  L${r.line}  [${r.kind}]  ${r.match}`);
+    } else if (r.kind === 'graph') {
+      outputLines.push(`  [${r.kind}]  ${r.match}  — ${r.context}`);
     }
   }
 
-  return lines.join('\n');
+  return outputLines.join('\n');
 }

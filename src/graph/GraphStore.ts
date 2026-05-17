@@ -16,6 +16,7 @@ export interface FunctionNode {
   isExported: boolean;
   parameters: string[];
   returnType?: string;
+  parentClass?: string;
 }
 
 export interface CommitNode {
@@ -33,7 +34,7 @@ export type GraphNode = FileNode | FunctionNode | CommitNode;
 export interface DependencyEdge {
   from: string;
   to: string;
-  type: 'imports' | 'calls' | 'extends' | 'implements';
+  type: 'imports' | 'calls' | 'extends' | 'implements' | 'changes';
   label?: string;
 }
 
@@ -46,6 +47,8 @@ export interface GraphStats {
 export interface GraphQueryFilter {
   type?: GraphNode['type'];
   label?: string;
+  /** When true, use exact equality instead of LIKE %label% */
+  exact?: boolean;
   path?: string;
 }
 
@@ -54,6 +57,8 @@ export interface GraphStore {
   addEdge(edge: DependencyEdge): void;
   getNode(id: string): GraphNode | undefined;
   getNeighbors(id: string): GraphNode[];
+  /** Returns all nodes that have edges pointing TO targetId (reverse deps / commits that changed a file). */
+  dependantsOf(targetId: string): GraphNode[];
   query(filter: GraphQueryFilter): GraphNode[];
   getStats(): GraphStats;
   serialize(): string;

@@ -22,7 +22,6 @@ process.env['LOG_LEVEL'] = 'silent';
 
 import { indexProject } from '../src/indexing/Indexer';
 import { DatabaseManager } from '../src/db/DatabaseManager';
-import { MemoryVectorStore } from '../src/vector/MemoryVectorStore';
 import { getDefaults } from '../src/config/defaults';
 import { getFireCodeDir } from '../src/utils/paths';
 import { CorpusService } from '../src/services/CorpusService';
@@ -30,7 +29,7 @@ import { CorpusService } from '../src/services/CorpusService';
 // ─── Paths ────────────────────────────────────────────────────────────────────
 
 const FIRECODE_ROOT  = resolve(__dirname, '..');
-const TEST_SRC       = join(__dirname, 'test-project');
+const TEST_SRC       = join(FIRECODE_ROOT, '__tests__', 'fixtures', 'complex-project');
 const CLI_ENTRY      = join(FIRECODE_ROOT, 'src', 'cli', 'index.ts');
 
 // ─── Scenarios ────────────────────────────────────────────────────────────────
@@ -50,111 +49,115 @@ const SCENARIOS: Scenario[] = [
   {
     id:          'H2',
     hypothesis:  'Code Duplication',
-    description: 'Forgot Password feature',
-    outputFile:  'src/forgot-password.ts',
-    promptBase:  `Create the file \`src/forgot-password.ts\` with a \`forgotPassword(email: string)\` function.
+    description: 'Forgot Password — email + token + hash spread across 3 modules',
+    outputFile:  'src/auth/forgotPassword.ts',
+    promptBase:  `Create \`src/auth/forgotPassword.ts\` with a \`forgotPassword(email: string, userService: any, tokenStore: any)\` function.
 
 It must:
 1. Validate email format
-2. Check if the user exists in the database
+2. Find the user by email (return silently if not found)
 3. Generate a secure random reset token
-4. Save the token to the database with 1-hour expiry
-5. Send a password reset email with a link
+4. Hash the token before storing it
+5. Save the hashed token with 1-hour expiry
+6. Build and return a password-reset email payload
 
 Constraints:
 - Do NOT re-implement functions that already exist in the codebase
-- Import and reuse existing helpers wherever possible
+- Import and reuse helpers from utils/validators.ts, utils/crypto.ts, jobs/emailJob.ts
 - The file must compile as valid TypeScript`,
-    mcpHint: 'forgotPassword email reset token flow',
-    checkDup:   ['validateEmail', 'generateToken', 'hashPassword'],
-    checkReuse: ['validateEmail', 'generateToken', 'sendEmail', 'buildPasswordResetEmail', 'db.'],
+    mcpHint: 'forgot password reset token hash email build payload',
+    checkDup:   ['validateEmail', 'generateToken', 'hashPassword', 'generateSalt'],
+    checkReuse: ['validateEmail', 'generateToken', 'buildPasswordResetEmail', 'hashPassword', 'generateSalt'],
   },
   {
     id:          'H1',
     hypothesis:  'Context Awareness',
-    description: 'Change Email (similar to changePassword)',
-    outputFile:  'src/change-email.ts',
-    promptBase:  `Create the file \`src/change-email.ts\` with a \`changeEmail(userId, newEmail, currentPassword)\` function.
+    description: 'Change Email — verifyPassword + validateEmail pattern',
+    outputFile:  'src/users/changeEmail.ts',
+    promptBase:  `Create \`src/users/changeEmail.ts\` with a \`changeEmail(userId: string, newEmail: string, currentPassword: string, userService: any)\` function.
 
 It must:
 1. Validate the new email format
-2. Verify the current password is correct (for security)
-3. Check the new email is not already taken
-4. Update the user record in the database
+2. Find the user by ID
+3. Verify the current password is correct
+4. Check the new email is not already taken by another user
+5. Update the user record and return the updated user
 
 Constraints:
 - Do NOT re-implement functions that already exist in the codebase
-- Import and reuse existing helpers wherever possible
+- Import and reuse helpers from utils/validators.ts, auth/authService.ts
 - The file must compile as valid TypeScript`,
-    mcpHint: 'change email validation password verification',
-    checkDup:   ['validateEmail', 'comparePassword'],
-    checkReuse: ['validateEmail', 'comparePassword', 'db.'],
+    mcpHint: 'change email validation verify password user update',
+    checkDup:   ['validateEmail', 'verifyPassword'],
+    checkReuse: ['validateEmail', 'verifyPassword', 'hashUserPassword'],
   },
   {
     id:          'H4',
     hypothesis:  'Feature Awareness',
-    description: 'Registration Handler (auth patterns exist)',
-    outputFile:  'src/register-handler.ts',
-    promptBase:  `Create the file \`src/register-handler.ts\` with a \`handleRegister(email, password)\` function.
+    description: 'Register Handler — 5 existing functions across 3 files',
+    outputFile:  'src/auth/registerHandler.ts',
+    promptBase:  `Create \`src/auth/registerHandler.ts\` with a \`handleRegister(email: string, password: string, username: string, userService: any)\` function.
 
 It must:
 1. Validate the email format
-2. Validate password strength (min 8 chars, uppercase, number)
-3. Check the email is not already registered
-4. Hash the password securely
-5. Create and return the new user
+2. Validate the password strength
+3. Validate the username
+4. Check the email is not already registered
+5. Hash the password securely with a salt
+6. Create and return the new user
 
 Constraints:
 - Do NOT re-implement functions that already exist in the codebase
-- Import and reuse existing helpers wherever possible
+- Import and reuse helpers from utils/validators.ts, utils/crypto.ts, auth/authService.ts
 - The file must compile as valid TypeScript`,
-    mcpHint: 'registration email password hash create user',
-    checkDup:   ['validateEmail', 'validatePassword', 'hashPassword'],
-    checkReuse: ['validateEmail', 'validatePassword', 'hashPassword', 'registerUser', 'db.'],
+    mcpHint: 'registration email password hash user create validate',
+    checkDup:   ['validateEmail', 'validatePassword', 'validateUsername', 'hashPassword'],
+    checkReuse: ['validateEmail', 'validatePassword', 'validateUsername', 'hashPassword', 'generateSalt', 'validateRegistration'],
   },
   {
     id:          'H5',
     hypothesis:  'Graph Traversal',
-    description: 'Dependency-aware refactor using graph neighbors',
-    outputFile:  'src/session-handler.ts',
-    promptBase:  `Create the file \`src/session-handler.ts\` with a \`createSession(userId, email)\` function.
+    description: 'Create Session — generateSessionTokens + buildSessionExpiry dependency chain',
+    outputFile:  'src/auth/sessionHandler.ts',
+    promptBase:  `Create \`src/auth/sessionHandler.ts\` with a \`createUserSession(userId: string, userService: any, sessionStore: any)\` function.
 
 It must:
-1. Verify the user exists by ID
-2. Generate a session token
-3. Save the session token in the database
-4. Return the token and expiry time
+1. Verify the user exists by ID and is active
+2. Generate session and refresh tokens
+3. Calculate session expiry times
+4. Save the session to the store
+5. Return the token pair and expiry info
 
 Constraints:
 - Do NOT re-implement functions that already exist in the codebase
-- Import and reuse existing helpers wherever possible
+- Import and reuse helpers from auth/authService.ts, models/Session.ts, models/User.ts
 - The file must compile as valid TypeScript`,
-    mcpHint: 'session token user database',
-    checkDup:   ['generateToken'],
-    checkReuse: ['generateToken', 'db.'],
+    mcpHint: 'session token generate expiry user active create store',
+    checkDup:   ['generateToken', 'generateSessionTokens'],
+    checkReuse: ['generateSessionTokens', 'buildSessionExpiry', 'isActive', 'isValid'],
   },
   {
     id:          'H6',
     hypothesis:  'Corpus Knowledge',
-    description: 'Architecture-aware implementation using corpus docs',
-    outputFile:  'src/password-reset.ts',
-    promptBase:  `Create the file \`src/password-reset.ts\` with a \`resetPassword(token, newPassword)\` function.
+    description: 'Refund Handler — 4 helpers from payments + jobs modules',
+    outputFile:  'src/payments/refundHandler.ts',
+    promptBase:  `Create \`src/payments/refundHandler.ts\` with a \`handleRefund(paymentId: string, reason: string, paymentService: any, userService: any)\` function.
 
 It must:
-1. Find the reset token in the database
-2. Check it hasn't expired
-3. Validate new password strength
-4. Hash the new password
-5. Update the user password in the database
-6. Delete the used token
+1. Load the payment by ID
+2. Check if the payment is refundable
+3. Calculate the refund fee
+4. Format the refund amount for display
+5. Process the refund via paymentService
+6. Build and return a refund notification email payload
 
 Constraints:
 - Do NOT re-implement functions that already exist in the codebase
-- Import and reuse existing helpers wherever possible
+- Import and reuse helpers from models/Payment.ts, jobs/emailJob.ts, payments/paymentProcessor.ts
 - The file must compile as valid TypeScript`,
-    mcpHint: 'password reset token expiry validation hash',
-    checkDup:   ['validatePassword', 'hashPassword'],
-    checkReuse: ['validatePassword', 'hashPassword', 'db.'],
+    mcpHint: 'refund payment isRefundable calculateFee formatAmount email notification',
+    checkDup:   ['isRefundable', 'calculateFee', 'formatAmount'],
+    checkReuse: ['isRefundable', 'calculateFee', 'formatAmount', 'buildRefundNoticeEmail'],
   },
 ];
 
@@ -270,9 +273,9 @@ async function setupProjects(): Promise<Projects> {
   const firedotDir = getFireCodeDir(withDir);
   mkdirSync(firedotDir, { recursive: true });
 
-  const db         = DatabaseManager.getInstance(firedotDir);
-  const graphStore = db.getGraphStore('benchmark');
-  const vectorStore = new MemoryVectorStore({ useEmbeddings: false });
+  const db          = DatabaseManager.getInstance(firedotDir);
+  const graphStore  = db.getGraphStore('benchmark');
+  const vectorStore = db.getVectorStore('benchmark');
 
   await indexProject(withDir, config, graphStore, vectorStore);
 

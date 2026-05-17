@@ -42,7 +42,8 @@ export async function scanFiles(cwd: string, config: IndexingConfig): Promise<Sc
 
   const files: ScannedFile[] = [];
 
-  for (const relPath of paths) {
+  for (const rawRelPath of paths) {
+    const relPath = rawRelPath.replace(/\\/g, '/');
     const absPath = join(cwd, relPath);
     const ext = relPath.slice(relPath.lastIndexOf('.'));
 

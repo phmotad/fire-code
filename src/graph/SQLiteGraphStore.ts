@@ -108,7 +108,15 @@ export class SQLiteGraphStore implements GraphStore {
     const params: string[] = [this.project];
 
     if (filter.type) { conditions.push('type = ?'); params.push(filter.type); }
-    if (filter.label) { conditions.push('label LIKE ?'); params.push(`%${filter.label}%`); }
+    if (filter.label) {
+      if (filter.exact) {
+        conditions.push('label = ?');
+        params.push(filter.label);
+      } else {
+        conditions.push('label LIKE ?');
+        params.push(`%${filter.label}%`);
+      }
+    }
 
     const rows = this.db.prepare(
       `SELECT data FROM graph_nodes WHERE ${conditions.join(' AND ')}`

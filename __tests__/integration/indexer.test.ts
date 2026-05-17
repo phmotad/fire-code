@@ -1,7 +1,6 @@
 import { join } from 'path';
 import { indexProject } from '../../src/indexing/Indexer';
 import { DatabaseManager } from '../../src/db/DatabaseManager';
-import { MemoryVectorStore } from '../../src/vector/MemoryVectorStore';
 import { getDefaults } from '../../src/config/defaults';
 import { existsSync, rmSync } from 'fs';
 import { getFireCodeDir } from '../../src/utils/paths';
@@ -23,7 +22,7 @@ describe('indexProject (integration)', () => {
 
     const db = DatabaseManager.getInstance(getFireCodeDir(FIXTURE_DIR));
     const graphStore = db.getGraphStore('sample-project');
-    const vectorStore = new MemoryVectorStore({ useEmbeddings: false });
+    const vectorStore = db.getVectorStore('sample-project');
 
     const result = await indexProject(FIXTURE_DIR, config, graphStore, vectorStore);
 
@@ -37,8 +36,8 @@ describe('indexProject (integration)', () => {
     const files = graphStore.query({ type: 'file' });
     expect(files.length).toBeGreaterThanOrEqual(2);
 
-    // graph.json is no longer written — SQLite is the store now
-    expect(existsSync(join(FIXTURE_DIR, '.firecode', 'vectors.db'))).toBe(true);
+    // vectors are now in firecode.db (SQLite) — no separate vectors.db file
+    expect(vectorStore.size()).toBeGreaterThan(0);
     expect(existsSync(join(FIXTURE_DIR, '.firecode', 'bootstrap.log'))).toBe(true);
     expect(existsSync(join(FIXTURE_DIR, '.firecode', 'firecode.db'))).toBe(true);
   }, 30000);

@@ -50,7 +50,11 @@ export class UserService {
     const results = parseFiles([file]);
     expect(results[0].classes).toHaveLength(1);
     expect(results[0].classes[0].name).toBe('UserService');
-    expect(results[0].classes[0].methods).toContain('findAll');
+    const methodNames = results[0].classes[0].methods.map(m => m.name);
+    expect(methodNames).toContain('findAll');
+    expect(methodNames).toContain('findOne');
+    expect(results[0].classes[0].methods[0].parameters).toEqual([]);
+    expect(results[0].classes[0].methods[1].parameters).toEqual(['id']);
   });
 
   it('falls back gracefully for non-TS files', () => {

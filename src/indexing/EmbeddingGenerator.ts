@@ -1,6 +1,7 @@
 import type { ScannedFile } from './FileScanner.js';
 import { sanitizeForLLM, isPrivateFile } from '../utils/privacy.js';
 import { logger } from '../utils/logger.js';
+import { embedTexts } from '../utils/modelManager.js';
 
 export interface EmbeddingDocument {
   id: string;
@@ -12,33 +13,6 @@ export interface EmbeddingDocument {
     name?: string;
   };
   embedding?: number[];
-}
-
-type EmbedPipeline = (texts: string[], options?: Record<string, unknown>) => Promise<{ data: Float32Array[] }>;
-let pipelineCache: EmbedPipeline | null = null;
-
-async function getPipeline(): Promise<EmbedPipeline | null> {
-  if (pipelineCache) return pipelineCache;
-  try {
-    // Dynamic import to avoid issues in test environments
-    const { pipeline } = await import('@xenova/transformers');
-    const pipe = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
-    pipelineCache = pipe as unknown as EmbedPipeline;
-    return pipelineCache;
-  } catch (err) {
-    logger.warn({ err: String(err) }, 'Could not load transformers.js, using zero embeddings');
-    return null;
-  }
-}
-
-async function embed(texts: string[]): Promise<number[][]> {
-  const pipe = await getPipeline();
-  if (!pipe) {
-    return texts.map(() => new Array(384).fill(0) as number[]);
-  }
-
-  const output = await pipe(texts, { pooling: 'mean', normalize: true });
-  return output.data.map((arr: Float32Array) => Array.from(arr));
 }
 
 export function buildDocumentsFromFiles(files: ScannedFile[]): EmbeddingDocument[] {
@@ -73,7 +47,7 @@ export async function generateEmbeddings(docs: EmbeddingDocument[]): Promise<Emb
   for (let i = 0; i < docs.length; i += BATCH) {
     const batch = docs.slice(i, i + BATCH);
     const texts = batch.map((d) => d.text);
-    const embeddings = await embed(texts);
+    const embeddings = await embedTexts(texts);
     batch.forEach((doc, j) => {
       result.push({ ...doc, embedding: embeddings[j] });
     });

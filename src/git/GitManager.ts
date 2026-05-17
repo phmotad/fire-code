@@ -172,4 +172,59 @@ export class GitManager {
       logger.warn({ err: String(err) }, 'Failed to pop stash');
     }
   }
+
+  async getRoot(): Promise<string> {
+    try {
+      const root = await this.git.revparse(['--show-toplevel']);
+      return root.trim();
+    } catch {
+      return this.cwd;
+    }
+  }
+
+  async getHeadHash(): Promise<string | null> {
+    try {
+      return (await this.git.revparse(['HEAD'])).trim();
+    } catch {
+      return null;
+    }
+  }
+
+  async getRecentCommits(maxCount = 20): Promise<CommitSummary[]> {
+    try {
+      const log = await this.git.log({ maxCount });
+      const commits: CommitSummary[] = [];
+
+      for (const entry of log.all) {
+        const raw = await this.git.raw(['show', '--name-only', '--format=', entry.hash]);
+        const files = raw.trim().split('\n').map(f => f.trim()).filter(f => f.length > 0);
+        commits.push({
+          sha: entry.hash,
+          message: entry.message,
+          timestamp: entry.date,
+          filesChanged: files,
+        });
+      }
+
+      return commits;
+    } catch {
+      return [];
+    }
+  }
+
+  async getWorkingDiff(maxLength = 3000): Promise<string> {
+    try {
+      const diff = await this.git.diff(['HEAD']);
+      return diff.slice(0, maxLength);
+    } catch {
+      return '';
+    }
+  }
+}
+
+export interface CommitSummary {
+  sha: string;
+  message: string;
+  timestamp: string;
+  filesChanged: string[];
 }
