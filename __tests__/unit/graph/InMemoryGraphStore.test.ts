@@ -1,10 +1,15 @@
 import { InMemoryGraphStore } from '../../../src/graph/InMemoryGraphStore';
 import { SQLiteGraphStore } from '../../../src/graph/SQLiteGraphStore';
 import { DatabaseManager } from '../../../src/db/DatabaseManager';
+import { initSqlJs } from '../../../src/db/SqlJsAdapter';
 import type { FileNode, FunctionNode, DependencyEdge } from '../../../src/graph/GraphStore';
 import { join } from 'path';
 import { mkdtempSync, rmSync, existsSync } from 'fs';
 import { tmpdir } from 'os';
+
+beforeAll(async () => {
+  await initSqlJs();
+});
 
 function makeFile(id: string, path: string): FileNode {
   return { id, type: 'file', label: path, path, functions: [], exports: [] };

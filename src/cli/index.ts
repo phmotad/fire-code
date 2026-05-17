@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
 import chalk from 'chalk';
+import { initSqlJs } from '../db/SqlJsAdapter.js';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { version } = require('../../package.json') as { version: string };
 import { initCommand } from './commands/init.js';
@@ -217,7 +218,12 @@ program
     }
   });
 
-program.parseAsync(process.argv).catch((err: unknown) => {
-  console.error(chalk.red('Error:'), String(err));
+initSqlJs().then(() => {
+  program.parseAsync(process.argv).catch((err: unknown) => {
+    console.error(chalk.red('Error:'), String(err));
+    process.exit(1);
+  });
+}).catch((err: unknown) => {
+  console.error(chalk.red('Failed to initialize database engine:'), String(err));
   process.exit(1);
 });

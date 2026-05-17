@@ -54,9 +54,11 @@ export async function indexProject(
       acc + f.functions.length + f.classes.reduce((s, cls) => s + cls.methods.length, 0), 0);
     logger.info({ files: parsed.length, functions: functionsFound }, 'AST parsed');
 
-    // 3. Build graph (clears previous data for this project, then re-inserts)
-    graphStore.clear();
-    buildGraphFromParsed(parsed, graphStore);
+    // 3. Build graph — wrapped in one transaction so we flush only once
+    graphStore.runBatch(() => {
+      graphStore.clear();
+      buildGraphFromParsed(parsed, graphStore);
+    });
 
     // 4. Index git history (CommitNodes + commit→file edges)
     const commitsIndexed = await indexGitHistory(cwd, config.git, graphStore);
@@ -94,6 +96,7 @@ export async function indexProject(
         db.setProjectMeta(project, 'indexed_at_hash', headHash);
         db.setProjectMeta(project, 'indexed_at', Date.now().toString());
       }
+      db.flush(); // persist all accumulated writes (metadata + any non-transacted ops)
     } catch { /* non-fatal */ }
 
     // 8. Bootstrap log

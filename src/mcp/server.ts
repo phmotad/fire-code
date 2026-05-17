@@ -18,8 +18,10 @@ import { FindSimilarInputSchema, findSimilarTool } from './tools/find_similar.js
 import { logger } from '../utils/logger.js';
 import { toFireCodeError } from '../utils/errors.js';
 import { zodToJsonSchema } from '../utils/zodToJsonSchema.js';
+import { initSqlJs } from '../db/SqlJsAdapter.js';
 
 export async function startMcpServer(cwd: string = process.cwd()): Promise<void> {
+  await initSqlJs();
   const config = await loadConfig(cwd);
   const provider = createProvider(config.llm);
 

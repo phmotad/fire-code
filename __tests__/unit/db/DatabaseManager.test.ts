@@ -2,6 +2,11 @@ import { join } from 'path';
 import { tmpdir } from 'os';
 import { mkdirSync, rmSync } from 'fs';
 import { DatabaseManager } from '../../../src/db/DatabaseManager';
+import { initSqlJs } from '../../../src/db/SqlJsAdapter';
+
+beforeAll(async () => {
+  await initSqlJs();
+});
 
 describe('DatabaseManager', () => {
   let tmpDir: string;

@@ -1,6 +1,6 @@
-import Database from 'better-sqlite3';
 import { existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
+import { SqlJsDatabase, getSqlJsSync } from './SqlJsAdapter.js';
 import { SCHEMA_SQL } from './schema.js';
 import { SQLiteGraphStore } from '../graph/SQLiteGraphStore.js';
 import { SQLiteVectorStore } from '../vector/SQLiteVectorStore.js';
@@ -63,10 +63,10 @@ let instance: DatabaseManager | null = null;
 
 export class DatabaseManager {
   // exposed for reset() only — do not use externally
-  readonly db: Database.Database;
+  readonly db: SqlJsDatabase;
 
-  private constructor(dbPath: string) {
-    this.db = new Database(dbPath);
+  private constructor(db: SqlJsDatabase) {
+    this.db = db;
     this.db.exec(SCHEMA_SQL);
   }
 
@@ -74,7 +74,8 @@ export class DatabaseManager {
     if (!instance) {
       if (!existsSync(firecdoDir)) mkdirSync(firecdoDir, { recursive: true });
       const dbPath = join(firecdoDir, 'firecode.db');
-      instance = new DatabaseManager(dbPath);
+      const db = SqlJsDatabase.openSync(getSqlJsSync(), dbPath);
+      instance = new DatabaseManager(db);
     }
     return instance;
   }
@@ -84,6 +85,10 @@ export class DatabaseManager {
       try { instance.db.close(); } catch { /* ignore */ }
       instance = null;
     }
+  }
+
+  flush(): void {
+    this.db.flush();
   }
 
   // ── Sessions ──────────────────────────────────────────────────────────────
@@ -125,20 +130,16 @@ export class DatabaseManager {
     const { project, type, file_path, query, limit = 20, offset = 0, dateStart, dateEnd } = filter;
 
     if (query) {
-      // FTS5 search
-      const ftsResults = this.db.prepare(`
-        SELECT o.* FROM observations o
-        JOIN observations_fts f ON f.rowid = o.id
-        WHERE observations_fts MATCH ?
-          ${project ? 'AND o.project = ?' : ''}
-          ${type ? 'AND o.type = ?' : ''}
-        ORDER BY o.created_at DESC
-        LIMIT ? OFFSET ?
-      `).all(
-        ...[query, project, type].filter(Boolean),
-        limit, offset
-      ) as Observation[];
-      return ftsResults;
+      const like = `%${query}%`;
+      const conditions2: string[] = ['(summary LIKE ? OR detail LIKE ? OR file_path LIKE ?)'];
+      const params2: (string | number)[] = [like, like, like];
+      if (project) { conditions2.push('project = ?'); params2.push(project); }
+      if (type) { conditions2.push('type = ?'); params2.push(type); }
+      return this.db.prepare(`
+        SELECT * FROM observations
+        WHERE ${conditions2.join(' AND ')}
+        ORDER BY created_at DESC LIMIT ? OFFSET ?
+      `).all(...params2, limit, offset) as Observation[];
     }
 
     const conditions: string[] = [];
@@ -252,15 +253,16 @@ export class DatabaseManager {
     const privateFilter = includePrivate ? '' : 'AND c.private = 0';
 
     if (query) {
+      const like = `%${query}%`;
+      const qConditions: string[] = ['(title LIKE ? OR content LIKE ? OR tags LIKE ?)'];
+      const qParams: (string | number)[] = [like, like, like];
+      if (project) { qConditions.push('project = ?'); qParams.push(project); }
+      if (!includePrivate) { qConditions.push('private = 0'); }
       return this.db.prepare(`
-        SELECT c.* FROM corpus c
-        JOIN corpus_fts f ON f.rowid = c.id
-        WHERE corpus_fts MATCH ?
-          ${project ? 'AND c.project = ?' : ''}
-          ${privateFilter}
-        ORDER BY c.updated_at DESC
-        LIMIT ?
-      `).all(...[query, project].filter(Boolean), limit) as CorpusItem[];
+        SELECT * FROM corpus
+        WHERE ${qConditions.join(' AND ')}
+        ORDER BY updated_at DESC LIMIT ?
+      `).all(...qParams, limit) as CorpusItem[];
     }
 
     const conditions: string[] = [];

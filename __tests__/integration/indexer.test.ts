@@ -1,11 +1,16 @@
 import { join } from 'path';
 import { indexProject } from '../../src/indexing/Indexer';
 import { DatabaseManager } from '../../src/db/DatabaseManager';
+import { initSqlJs } from '../../src/db/SqlJsAdapter';
 import { getDefaults } from '../../src/config/defaults';
 import { existsSync, rmSync } from 'fs';
 import { getFireCodeDir } from '../../src/utils/paths';
 
 const FIXTURE_DIR = join(__dirname, '../fixtures/sample-project');
+
+beforeAll(async () => {
+  await initSqlJs();
+});
 
 afterAll(() => {
   DatabaseManager.reset(); // closes DB handle before deleting the directory

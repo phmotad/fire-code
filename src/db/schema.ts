@@ -1,5 +1,5 @@
+// FTS5 is not compiled into sql.js — text search uses LIKE queries instead.
 export const SCHEMA_SQL = `
-PRAGMA journal_mode=WAL;
 PRAGMA foreign_keys=ON;
 
 CREATE TABLE IF NOT EXISTS sessions (
@@ -8,14 +8,14 @@ CREATE TABLE IF NOT EXISTS sessions (
   cwd         TEXT    NOT NULL,
   started_at  INTEGER NOT NULL,
   ended_at    INTEGER,
-  status      TEXT    NOT NULL DEFAULT 'active'  -- active | completed | abandoned
+  status      TEXT    NOT NULL DEFAULT 'active'
 );
 
 CREATE TABLE IF NOT EXISTS observations (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   session_id  TEXT    NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
   project     TEXT    NOT NULL,
-  type        TEXT    NOT NULL DEFAULT 'change',  -- change | bugfix | feature | refactor | decision | discovery
+  type        TEXT    NOT NULL DEFAULT 'change',
   tool        TEXT,
   file_path   TEXT,
   summary     TEXT    NOT NULL,
@@ -35,29 +35,12 @@ CREATE TABLE IF NOT EXISTS file_index (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   project     TEXT    NOT NULL,
   file_path   TEXT    NOT NULL,
-  functions   TEXT,   -- JSON array of function names
-  classes     TEXT,   -- JSON array of class names
-  imports     TEXT,   -- JSON array of import paths
+  functions   TEXT,
+  classes     TEXT,
+  imports     TEXT,
   indexed_at  INTEGER NOT NULL DEFAULT (unixepoch()),
   UNIQUE(project, file_path)
 );
-
--- Full-text search on observations
-CREATE VIRTUAL TABLE IF NOT EXISTS observations_fts USING fts5(
-  summary, detail, file_path, type,
-  content=observations,
-  content_rowid=id
-);
-
-CREATE TRIGGER IF NOT EXISTS obs_fts_insert AFTER INSERT ON observations BEGIN
-  INSERT INTO observations_fts(rowid, summary, detail, file_path, type)
-  VALUES (new.id, new.summary, new.detail, new.file_path, new.type);
-END;
-
-CREATE TRIGGER IF NOT EXISTS obs_fts_delete AFTER DELETE ON observations BEGIN
-  INSERT INTO observations_fts(observations_fts, rowid, summary, detail, file_path, type)
-  VALUES ('delete', old.id, old.summary, old.detail, old.file_path, old.type);
-END;
 
 CREATE INDEX IF NOT EXISTS idx_obs_project    ON observations(project);
 CREATE INDEX IF NOT EXISTS idx_obs_type       ON observations(type);
@@ -67,43 +50,28 @@ CREATE INDEX IF NOT EXISTS idx_obs_file       ON observations(file_path);
 CREATE INDEX IF NOT EXISTS idx_sessions_proj  ON sessions(project);
 CREATE INDEX IF NOT EXISTS idx_file_index     ON file_index(project, file_path);
 
--- Knowledge Corpus
 CREATE TABLE IF NOT EXISTS corpus (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   project     TEXT    NOT NULL,
   title       TEXT    NOT NULL,
   content     TEXT    NOT NULL,
-  source      TEXT,   -- file path or URL
-  tags        TEXT,   -- JSON array
-  private     INTEGER NOT NULL DEFAULT 0,  -- 1 = never send to LLM
+  source      TEXT,
+  tags        TEXT,
+  private     INTEGER NOT NULL DEFAULT 0,
   created_at  INTEGER NOT NULL DEFAULT (unixepoch()),
   updated_at  INTEGER NOT NULL DEFAULT (unixepoch()),
   UNIQUE(project, title)
 );
 
-CREATE VIRTUAL TABLE IF NOT EXISTS corpus_fts USING fts5(
-  title, content, tags,
-  content=corpus,
-  content_rowid=id
-);
-
-CREATE TRIGGER IF NOT EXISTS corpus_fts_insert AFTER INSERT ON corpus BEGIN
-  INSERT INTO corpus_fts(rowid, title, content, tags) VALUES (new.id, new.title, new.content, new.tags);
-END;
-CREATE TRIGGER IF NOT EXISTS corpus_fts_delete AFTER DELETE ON corpus BEGIN
-  INSERT INTO corpus_fts(corpus_fts, rowid, title, content, tags) VALUES ('delete', old.id, old.title, old.content, old.tags);
-END;
-
 CREATE INDEX IF NOT EXISTS idx_corpus_project ON corpus(project);
 CREATE INDEX IF NOT EXISTS idx_corpus_private ON corpus(project, private);
 
--- Dependency Graph
 CREATE TABLE IF NOT EXISTS graph_nodes (
   id       TEXT NOT NULL,
   project  TEXT NOT NULL,
-  type     TEXT NOT NULL,   -- file | function | commit
+  type     TEXT NOT NULL,
   label    TEXT NOT NULL,
-  data     TEXT NOT NULL,   -- JSON blob of the full node
+  data     TEXT NOT NULL,
   PRIMARY KEY (project, id)
 );
 
@@ -112,7 +80,7 @@ CREATE TABLE IF NOT EXISTS graph_edges (
   project  TEXT NOT NULL,
   from_id  TEXT NOT NULL,
   to_id    TEXT NOT NULL,
-  type     TEXT NOT NULL,   -- imports | calls | extends | implements
+  type     TEXT NOT NULL,
   label    TEXT,
   UNIQUE(project, from_id, to_id, type)
 );
@@ -121,19 +89,17 @@ CREATE INDEX IF NOT EXISTS idx_gnodes_project ON graph_nodes(project, type);
 CREATE INDEX IF NOT EXISTS idx_gedges_from    ON graph_edges(project, from_id);
 CREATE INDEX IF NOT EXISTS idx_gedges_to      ON graph_edges(project, to_id);
 
--- Vector Embeddings (persistent, replaces in-memory MemoryVectorStore)
 CREATE TABLE IF NOT EXISTS vector_chunks (
   id        TEXT    NOT NULL,
   project   TEXT    NOT NULL,
   text      TEXT    NOT NULL,
-  metadata  TEXT    NOT NULL,  -- JSON
-  embedding TEXT,               -- JSON float array, NULL when model unavailable
+  metadata  TEXT    NOT NULL,
+  embedding TEXT,
   PRIMARY KEY (project, id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_vchunks_project ON vector_chunks(project);
 
--- Project-level key-value metadata (index hash, timestamps, etc.)
 CREATE TABLE IF NOT EXISTS project_metadata (
   project TEXT NOT NULL,
   key     TEXT NOT NULL,

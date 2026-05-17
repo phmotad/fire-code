@@ -1,4 +1,4 @@
-import Database from 'better-sqlite3';
+import { SqlJsDatabase } from '../db/SqlJsAdapter.js';
 import type { Document, ScoredDocument, VectorStore } from './VectorStore.js';
 import { embedTexts } from '../utils/modelManager.js';
 import { logger } from '../utils/logger.js';
@@ -40,7 +40,7 @@ interface VectorRow {
 }
 
 export class SQLiteVectorStore implements VectorStore {
-  constructor(private db: Database.Database, private project: string) {}
+  constructor(private db: SqlJsDatabase, private project: string) {}
 
   async add(documents: Document[]): Promise<void> {
     const insert = this.db.prepare(`

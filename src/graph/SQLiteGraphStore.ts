@@ -1,4 +1,4 @@
-import Database from 'better-sqlite3';
+import { SqlJsDatabase } from '../db/SqlJsAdapter.js';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { DirectedGraph } = require('graphology') as typeof import('graphology');
 import { bfsFromNode } from 'graphology-traversal';
@@ -21,7 +21,7 @@ export class SQLiteGraphStore implements GraphStore {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private g: AbstractGraph<any, any, any>;
 
-  constructor(private db: Database.Database, private project: string) {
+  constructor(private db: SqlJsDatabase, private project: string) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     this.g = new DirectedGraph() as AbstractGraph<any, any, any>;
     this.load();
@@ -187,6 +187,19 @@ export class SQLiteGraphStore implements GraphStore {
     this.db.prepare(`DELETE FROM graph_edges WHERE project = ?`).run(this.project);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     this.g = new DirectedGraph() as AbstractGraph<any, any, any>;
+  }
+
+  /** Wrap a bulk-insert callback in a single SQLite transaction + disk flush. */
+  runBatch(fn: () => void): void {
+    this.db.exec('BEGIN');
+    try {
+      fn();
+      this.db.exec('COMMIT');
+    } catch (err) {
+      try { this.db.exec('ROLLBACK'); } catch { /* ignore */ }
+      throw err;
+    }
+    this.db.flush();
   }
 
   // ── Legacy compat (serialize returns a summary, not full JSON) ───────────
