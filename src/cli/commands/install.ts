@@ -3,6 +3,7 @@ import { homedir } from 'os';
 import { join, resolve } from 'path';
 import chalk from 'chalk';
 import ora from 'ora';
+import { installPostCheckoutHook } from '../../utils/gitHooks.js';
 
 const PLUGIN_ROOT = resolve(__dirname, '..', '..', '..');
 const INJECT_SCRIPT = join(PLUGIN_ROOT, 'plugin', 'scripts', 'context-inject.js');
@@ -404,6 +405,16 @@ export async function installCommand(opts: InstallOptions = {}): Promise<void> {
 
     writeAgentsMd(opts.cwd ?? process.cwd());
     console.log(chalk.green('  ✓') + ' agents.md written to project root');
+
+    // Install post-checkout git hook so the index stays in sync after branch switches
+    const hookResult = installPostCheckoutHook(opts.cwd ?? process.cwd());
+    if (hookResult === 'installed') {
+      console.log(chalk.green('  ✓') + ' post-checkout git hook installed (auto re-index on branch switch)');
+    } else if (hookResult === 'updated') {
+      console.log(chalk.green('  ✓') + ' post-checkout git hook merged into existing hook');
+    } else if (hookResult === 'already_set') {
+      console.log(chalk.gray('  ↳ post-checkout git hook already present'));
+    }
 
     console.log(chalk.green('\n  ✓ Fire Code installed successfully!\n'));
     console.log(chalk.gray('  Next steps:'));

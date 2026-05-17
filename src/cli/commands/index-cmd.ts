@@ -11,6 +11,8 @@ export interface IndexCommandOptions {
   mode?: 'full' | 'lazy';
   cwd?: string;
   skipEmbeddings?: boolean;
+  /** Suppress all output — used by the post-checkout git hook. */
+  silent?: boolean;
 }
 
 function getProjectName(cwd: string): string {
@@ -95,22 +97,24 @@ async function downloadModelWithProgress(): Promise<boolean> {
 
 export async function indexCommand(opts: IndexCommandOptions = {}): Promise<void> {
   const cwd = opts.cwd ?? process.cwd();
+  const silent = opts.silent ?? false;
+  const log = silent ? () => {} : console.log.bind(console);
   const config = await loadConfig(cwd);
 
   if (opts.mode) config.indexing.mode = opts.mode;
 
-  console.log(chalk.red.bold('\n🔥 Fire Code — Indexer\n'));
-  console.log(chalk.gray(`   Mode: ${config.indexing.mode}`));
-  console.log(chalk.gray(`   Working dir: ${cwd}\n`));
+  log(chalk.red.bold('\n🔥 Fire Code — Indexer\n'));
+  log(chalk.gray(`   Mode: ${config.indexing.mode}`));
+  log(chalk.gray(`   Working dir: ${cwd}\n`));
 
   // Step 1: Ensure embedding model is downloaded
-  if (!opts.skipEmbeddings) {
+  if (!opts.skipEmbeddings && !silent) {
     await downloadModelWithProgress();
-    console.log();
+    log();
   }
 
   // Step 2: Index the project
-  const spinner = ora({ text: 'Scanning files...', indent: 3 }).start();
+  const spinner = silent ? null : ora({ text: 'Scanning files...', indent: 3 }).start();
 
   const project = getProjectName(cwd);
   const db = DatabaseManager.getInstance(getFireCodeDir(cwd));
@@ -118,23 +122,23 @@ export async function indexCommand(opts: IndexCommandOptions = {}): Promise<void
   const vectorStore = db.getVectorStore(project);
 
   try {
-    spinner.text = 'Indexando arquivos e gerando embeddings...';
+    if (spinner) spinner.text = 'Indexando arquivos e gerando embeddings...';
     const result = await indexProject(cwd, config, graphStore, vectorStore);
-    spinner.succeed(chalk.green('Indexação completa!'));
+    if (spinner) spinner.succeed(chalk.green('Indexação completa!'));
 
-    console.log('\n' + chalk.bold('   Resultados:'));
-    console.log(chalk.gray(`   Files indexed:      `) + chalk.white(result.filesIndexed));
-    console.log(chalk.gray(`   Functions found:    `) + chalk.white(result.functionsFound));
-    console.log(chalk.gray(`   Graph nodes:        `) + chalk.white(result.nodesCreated));
-    console.log(chalk.gray(`   Graph edges:        `) + chalk.white(result.edgesCreated));
-    console.log(chalk.gray(`   Commits indexed:    `) + chalk.white(result.commitsIndexed));
-    console.log(chalk.gray(`   Embeddings:         `) + chalk.white(result.embeddingsGenerated));
-    console.log(chalk.gray(`   Duration:           `) + chalk.white(`${result.durationMs}ms`));
-    console.log(chalk.gray(`\n   Saved to:           `) + chalk.dim('.firecode/'));
-    console.log();
+    log('\n' + chalk.bold('   Resultados:'));
+    log(chalk.gray(`   Files indexed:      `) + chalk.white(result.filesIndexed));
+    log(chalk.gray(`   Functions found:    `) + chalk.white(result.functionsFound));
+    log(chalk.gray(`   Graph nodes:        `) + chalk.white(result.nodesCreated));
+    log(chalk.gray(`   Graph edges:        `) + chalk.white(result.edgesCreated));
+    log(chalk.gray(`   Commits indexed:    `) + chalk.white(result.commitsIndexed));
+    log(chalk.gray(`   Embeddings:         `) + chalk.white(result.embeddingsGenerated));
+    log(chalk.gray(`   Duration:           `) + chalk.white(`${result.durationMs}ms`));
+    log(chalk.gray(`\n   Saved to:           `) + chalk.dim('.firecode/'));
+    log('');
   } catch (err) {
-    spinner.fail(chalk.red('Indexação falhou'));
-    console.error(chalk.red(String(err)));
+    if (spinner) spinner.fail(chalk.red('Indexação falhou'));
+    if (!silent) console.error(chalk.red(String(err)));
     process.exit(1);
   }
 }

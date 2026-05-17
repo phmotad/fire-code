@@ -40,8 +40,9 @@ program
   .description('Index the project (build graph + embeddings)')
   .option('--mode <mode>', 'Indexing mode: full | lazy', 'lazy')
   .option('--cwd <path>', 'Working directory', process.cwd())
-  .action(async (opts: { mode: 'full' | 'lazy'; cwd: string }) => {
-    await indexCommand({ mode: opts.mode, cwd: opts.cwd });
+  .option('--silent', 'Suppress all output (used by git hooks)', false)
+  .action(async (opts: { mode: 'full' | 'lazy'; cwd: string; silent: boolean }) => {
+    await indexCommand({ mode: opts.mode, cwd: opts.cwd, silent: opts.silent });
   });
 
 program
