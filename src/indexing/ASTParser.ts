@@ -1,4 +1,6 @@
 import { Project, SyntaxKind } from 'ts-morph';
+import { join } from 'path';
+import { existsSync } from 'fs';
 import type { ScannedFile } from './FileScanner.js';
 
 export interface ParsedFunction {
@@ -32,121 +34,145 @@ export interface ParsedFile {
   language: string;
 }
 
-const TS_EXTENSIONS  = new Set(['.ts', '.tsx', '.js', '.jsx', '.mts', '.cts', '.mjs', '.cjs']);
-const PY_EXTENSIONS  = new Set(['.py', '.pyw']);
-const GO_EXTENSIONS  = new Set(['.go']);
+const TS_EXTENSIONS   = new Set(['.ts', '.tsx', '.js', '.jsx', '.mts', '.cts', '.mjs', '.cjs']);
+const PY_EXTENSIONS   = new Set(['.py', '.pyw']);
+const GO_EXTENSIONS   = new Set(['.go']);
 const RUST_EXTENSIONS = new Set(['.rs']);
 
-// ── Tree-sitter multilingual parser ──────────────────────────────────────────
+// ── web-tree-sitter (WASM, no native compilation) ────────────────────────────
+// Grammar WASM files are bundled in wasm/ at the package root (two levels up
+// from src/indexing/ in source mode, two levels up from dist/indexing/ in
+// compiled mode — both land at the project / package root).
 
-let treeSitterReady = false;
+const WASM_DIR = join(__dirname, '..', '..', 'wasm');
 
-interface TSParser {
-  setLanguage(lang: unknown): void;
-  parse(src: string): { rootNode: TSNode };
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _Parser: any = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _pythonLang: any = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _goLang: any = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _rustLang: any = null;
+
+export let treeSitterReady = false;
+
+let _initPromise: Promise<void> | null = null;
+
+export function initTreeSitter(): Promise<void> {
+  if (_initPromise) return _initPromise;
+  _initPromise = _doInit().catch(() => { /* tree-sitter unavailable — regex fallback */ });
+  return _initPromise!;
 }
 
-interface TSNode {
-  type: string;
-  startPosition: { row: number };
-  text: string;
-  children: TSNode[];
-  namedChildren: TSNode[];
-  childForFieldName(name: string): TSNode | null;
+async function _doInit(): Promise<void> {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const mod = require('web-tree-sitter');
+  // Handle both CJS (mod.default or mod) export shapes
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const Parser: any = mod.default ?? mod;
+
+  await Parser.init();
+  _Parser = Parser;
+
+  const loadLang = async (name: string): Promise<unknown> => {
+    const wasmPath = join(WASM_DIR, `${name}.wasm`);
+    if (!existsSync(wasmPath)) return null;
+    try { return await Parser.Language.load(wasmPath); } catch { return null; }
+  };
+
+  [_pythonLang, _goLang, _rustLang] = await Promise.all([
+    loadLang('tree-sitter-python'),
+    loadLang('tree-sitter-go'),
+    loadLang('tree-sitter-rust'),
+  ]);
+
+  treeSitterReady = true;
 }
 
-function loadTreeSitter(): TSParser | null {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const Parser = require('tree-sitter');
-    treeSitterReady = true;
-    return new Parser() as TSParser;
-  } catch {
-    return null;
-  }
-}
+// ── Shared walk helper ────────────────────────────────────────────────────────
 
-function loadGrammar(name: string): unknown | null {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const mod = require(`tree-sitter-${name}`);
-    return mod.typescript ?? mod.javascript ?? mod.python ?? mod.go ?? mod.rust ?? mod;
-  } catch {
-    return null;
-  }
-}
-
-function walk(node: TSNode, visitor: (n: TSNode) => void) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function walk(node: any, visitor: (n: any) => void): void {
   visitor(node);
-  for (const child of node.children ?? []) walk(child, visitor);
+  const kids: unknown[] = node.children ?? [];
+  for (const child of kids) walk(child, visitor);
 }
 
-function parsePython(file: ScannedFile, parser: TSParser): ParsedFile {
-  const grammar = loadGrammar('python');
-  if (!grammar) return parseWithRegex(file, 'python');
-  parser.setLanguage(grammar);
-  const tree = parser.parse(file.content);
-  const functions: ParsedFunction[] = [];
-  const classes: ParsedClass[] = [];
-
-  walk(tree.rootNode, (node) => {
-    if (node.type === 'function_definition') {
-      const namePart = node.children.find(c => c.type === 'identifier');
-      if (namePart) {
-        functions.push({ name: namePart.text, line: node.startPosition.row + 1, isExported: true, parameters: [] });
-      }
-    }
-    if (node.type === 'class_definition') {
-      const namePart = node.children.find(c => c.type === 'identifier');
-      if (namePart) {
-        classes.push({ name: namePart.text, line: node.startPosition.row + 1, isExported: true, methods: [] });
-      }
-    }
-  });
-
-  return { path: file.path, relativePath: file.relativePath, functions, classes, imports: [], exports: [], language: 'python' };
+/** Returns the tree's rootNode, or null if tree-sitter is unavailable / parse fails. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function parseRoot(file: ScannedFile, lang: any): any {
+  if (!_Parser || !lang) return null;
+  try {
+    const parser = new _Parser();
+    parser.setLanguage(lang);
+    return parser.parse(file.content)?.rootNode ?? null;
+  } catch {
+    return null;
+  }
 }
 
-function parseGo(file: ScannedFile, parser: TSParser): ParsedFile {
-  const grammar = loadGrammar('go');
-  if (!grammar) return parseWithRegex(file, 'go');
-  parser.setLanguage(grammar);
-  const tree = parser.parse(file.content);
-  const functions: ParsedFunction[] = [];
+// ── Language-specific parsers ─────────────────────────────────────────────────
 
-  walk(tree.rootNode, (node) => {
-    if (node.type === 'function_declaration' || node.type === 'method_declaration') {
-      const namePart = node.childForFieldName?.('name') ?? node.children.find(c => c.type === 'field_identifier' || c.type === 'identifier');
-      if (namePart) {
-        functions.push({ name: namePart.text, line: node.startPosition.row + 1, isExported: /^[A-Z]/.test(namePart.text), parameters: [] });
+function parsePython(file: ScannedFile): ParsedFile {
+  const root = parseRoot(file, _pythonLang);
+  if (root) {
+    const functions: ParsedFunction[] = [];
+    const classes: ParsedClass[] = [];
+    walk(root, (node) => {
+      if (node.type === 'function_definition') {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const name = (node.children as any[]).find((c: any) => c.type === 'identifier')?.text;
+        if (name) functions.push({ name, line: (node.startPosition?.row ?? 0) + 1, isExported: true, parameters: [] });
       }
-    }
-  });
-
-  return { path: file.path, relativePath: file.relativePath, functions, classes: [], imports: [], exports: [], language: 'go' };
+      if (node.type === 'class_definition') {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const name = (node.children as any[]).find((c: any) => c.type === 'identifier')?.text;
+        if (name) classes.push({ name, line: (node.startPosition?.row ?? 0) + 1, isExported: true, methods: [] });
+      }
+    });
+    return { path: file.path, relativePath: file.relativePath, functions, classes, imports: [], exports: [], language: 'python' };
+  }
+  return parseWithRegex(file, 'python');
 }
 
-function parseRust(file: ScannedFile, parser: TSParser): ParsedFile {
-  const grammar = loadGrammar('rust');
-  if (!grammar) return parseWithRegex(file, 'rust');
-  parser.setLanguage(grammar);
-  const tree = parser.parse(file.content);
-  const functions: ParsedFunction[] = [];
-
-  walk(tree.rootNode, (node) => {
-    if (node.type === 'function_item') {
-      const namePart = node.childForFieldName?.('name') ?? node.children.find(c => c.type === 'identifier');
-      if (namePart) {
-        const isExported = node.children.some(c => c.type === 'visibility_modifier' && c.text === 'pub');
-        functions.push({ name: namePart.text, line: node.startPosition.row + 1, isExported, parameters: [] });
+function parseGo(file: ScannedFile): ParsedFile {
+  const root = parseRoot(file, _goLang);
+  if (root) {
+    const functions: ParsedFunction[] = [];
+    walk(root, (node) => {
+      if (node.type === 'function_declaration' || node.type === 'method_declaration') {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const name = (node.childForFieldName?.('name') ?? (node.children as any[]).find((c: any) => c.type === 'field_identifier' || c.type === 'identifier'))?.text;
+        if (name) functions.push({ name, line: (node.startPosition?.row ?? 0) + 1, isExported: /^[A-Z]/.test(name), parameters: [] });
       }
-    }
-  });
-
-  return { path: file.path, relativePath: file.relativePath, functions, classes: [], imports: [], exports: [], language: 'rust' };
+    });
+    return { path: file.path, relativePath: file.relativePath, functions, classes: [], imports: [], exports: [], language: 'go' };
+  }
+  return parseWithRegex(file, 'go');
 }
 
-// ── Regex fallback (any language) ────────────────────────────────────────────
+function parseRust(file: ScannedFile): ParsedFile {
+  const root = parseRoot(file, _rustLang);
+  if (root) {
+    const functions: ParsedFunction[] = [];
+    walk(root, (node) => {
+      if (node.type === 'function_item') {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const name = (node.childForFieldName?.('name') ?? (node.children as any[]).find((c: any) => c.type === 'identifier'))?.text;
+        if (name) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const isPub = (node.children as any[]).some((c: any) => c.type === 'visibility_modifier' && c.text === 'pub');
+          functions.push({ name, line: (node.startPosition?.row ?? 0) + 1, isExported: isPub, parameters: [] });
+        }
+      }
+    });
+    return { path: file.path, relativePath: file.relativePath, functions, classes: [], imports: [], exports: [], language: 'rust' };
+  }
+  return parseWithRegex(file, 'rust');
+}
+
+// ── Language-aware regex fallback ────────────────────────────────────────────
 
 function parseWithRegex(file: ScannedFile, language = 'unknown'): ParsedFile {
   const functions: ParsedFunction[] = [];
@@ -155,8 +181,29 @@ function parseWithRegex(file: ScannedFile, language = 'unknown'): ParsedFile {
 
   const lines = file.content.split('\n');
   lines.forEach((line, i) => {
-    const fnMatch = line.match(/(?:export\s+)?(?:async\s+)?function\s+(\w+)/);
-    if (fnMatch) functions.push({ name: fnMatch[1], line: i + 1, isExported: line.includes('export'), parameters: [] });
+    const ln = i + 1;
+
+    // JS/TS function declarations
+    const jsFn = line.match(/(?:export\s+)?(?:async\s+)?function\s+(\w+)/);
+    if (jsFn) functions.push({ name: jsFn[1], line: ln, isExported: line.includes('export'), parameters: [] });
+
+    // Python
+    if (language === 'python') {
+      const pyFn = line.match(/^\s*def\s+(\w+)\s*\(/);
+      if (pyFn) functions.push({ name: pyFn[1], line: ln, isExported: true, parameters: [] });
+    }
+
+    // Go
+    if (language === 'go') {
+      const goFn = line.match(/^func\s+(?:\(\w+\s+\*?\w+\)\s+)?(\w+)\s*\(/);
+      if (goFn) functions.push({ name: goFn[1], line: ln, isExported: /^[A-Z]/.test(goFn[1]), parameters: [] });
+    }
+
+    // Rust
+    if (language === 'rust') {
+      const rsFn = line.match(/^\s*(?:pub\s+)?(?:async\s+)?fn\s+(\w+)\s*[<(]/);
+      if (rsFn) functions.push({ name: rsFn[1], line: ln, isExported: line.trimStart().startsWith('pub'), parameters: [] });
+    }
 
     const importMatch = line.match(/^import\s+.*from\s+['"](.+)['"]/);
     if (importMatch) {
@@ -225,22 +272,21 @@ function parseTsJs(file: ScannedFile, project: InstanceType<typeof Project>): Pa
   }
 }
 
-// ── Public API ────────────────────────────────────────────────────────────────
+// ── Public API ─────────────────────────────────────────────────────────────────
 
 export function parseFiles(files: ScannedFile[]): ParsedFile[] {
   const results: ParsedFile[] = [];
   const tsProject = new Project({ useInMemoryFileSystem: true, skipFileDependencyResolution: true });
-  const tsParser = loadTreeSitter();
 
   for (const file of files) {
     if (TS_EXTENSIONS.has(file.extension)) {
       results.push(parseTsJs(file, tsProject));
-    } else if (tsParser && PY_EXTENSIONS.has(file.extension)) {
-      results.push(parsePython(file, tsParser));
-    } else if (tsParser && GO_EXTENSIONS.has(file.extension)) {
-      results.push(parseGo(file, tsParser));
-    } else if (tsParser && RUST_EXTENSIONS.has(file.extension)) {
-      results.push(parseRust(file, tsParser));
+    } else if (PY_EXTENSIONS.has(file.extension)) {
+      results.push(parsePython(file));
+    } else if (GO_EXTENSIONS.has(file.extension)) {
+      results.push(parseGo(file));
+    } else if (RUST_EXTENSIONS.has(file.extension)) {
+      results.push(parseRust(file));
     } else {
       results.push(parseWithRegex(file, file.extension.slice(1) || 'text'));
     }
@@ -248,5 +294,3 @@ export function parseFiles(files: ScannedFile[]): ParsedFile[] {
 
   return results;
 }
-
-export { treeSitterReady };

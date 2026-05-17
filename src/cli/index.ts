@@ -2,6 +2,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import { initSqlJs } from '../db/SqlJsAdapter.js';
+import { initTreeSitter } from '../indexing/ASTParser.js';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { version } = require('../../package.json') as { version: string };
 import { initCommand } from './commands/init.js';
@@ -218,12 +219,12 @@ program
     }
   });
 
-initSqlJs().then(() => {
+Promise.all([initSqlJs(), initTreeSitter()]).then(() => {
   program.parseAsync(process.argv).catch((err: unknown) => {
     console.error(chalk.red('Error:'), String(err));
     process.exit(1);
   });
 }).catch((err: unknown) => {
-  console.error(chalk.red('Failed to initialize database engine:'), String(err));
+  console.error(chalk.red('Failed to initialize:'), String(err));
   process.exit(1);
 });
